@@ -115,7 +115,7 @@ export async function generateAiNarrative(
   const settings = loadAiSettings()
   const proxy = useAiProxy()
 
-  if (!settings.enabled) {
+  if (!proxy && !settings.enabled) {
     throw new Error('尚未啟用 AI 解讀')
   }
   if (!proxy && !settings.apiKey.trim()) {

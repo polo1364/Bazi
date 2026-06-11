@@ -20,12 +20,14 @@ export function useAiProxy(): boolean {
 }
 
 export function loadAiSettings(): AiSettings {
+  const proxyDefaults = useAiProxy() ? { ...DEFAULTS, enabled: true } : DEFAULTS
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { ...DEFAULTS }
-    return { ...DEFAULTS, ...JSON.parse(raw) }
+    if (!raw) return { ...proxyDefaults }
+    const settings = { ...proxyDefaults, ...JSON.parse(raw) }
+    return useAiProxy() ? { ...settings, enabled: true, apiKey: '' } : settings
   } catch {
-    return { ...DEFAULTS }
+    return { ...proxyDefaults }
   }
 }
 
@@ -34,8 +36,8 @@ export function saveAiSettings(settings: AiSettings): void {
 }
 
 export function isAiConfigured(): boolean {
+  if (useAiProxy()) return true
   const s = loadAiSettings()
   if (!s.enabled) return false
-  if (useAiProxy()) return true
   return s.apiKey.trim().length > 0
 }
