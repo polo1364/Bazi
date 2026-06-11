@@ -3,7 +3,9 @@ import jsPDF from 'jspdf'
 import type { AnalysisResult, BirthInput } from '../types'
 import { pillarsToArray } from './bazi'
 
-const PDF_SCALE = 2
+const DESKTOP_SCALE = 2
+const MOBILE_SCALE = 1.25
+const PDF_LAYOUT_WIDTH = 794
 const PAGE_BG = '#070d1a'
 
 function sanitizeFilename(name: string): string {
@@ -40,16 +42,46 @@ export function waitForLayout(): Promise<void> {
   })
 }
 
+function isMobileViewport(): boolean {
+  return window.matchMedia?.('(max-width: 767px)').matches ?? window.innerWidth < 768
+}
+
+async function withPdfWidth<T>(element: HTMLElement, run: () => Promise<T>): Promise<T> {
+  const previousWidth = element.style.width
+  const previousMaxWidth = element.style.maxWidth
+  const previousMargin = element.style.margin
+  const previousAlignSelf = element.style.alignSelf
+
+  element.style.width = `${PDF_LAYOUT_WIDTH}px`
+  element.style.maxWidth = 'none'
+  element.style.margin = '0 auto'
+  element.style.alignSelf = 'center'
+
+  await waitForLayout()
+
+  return run().finally(() => {
+    element.style.width = previousWidth
+    element.style.maxWidth = previousMaxWidth
+    element.style.margin = previousMargin
+    element.style.alignSelf = previousAlignSelf
+  })
+}
+
 async function snapshot(node: HTMLElement): Promise<HTMLCanvasElement> {
+  const width = Math.max(node.scrollWidth, node.offsetWidth, PDF_LAYOUT_WIDTH)
+  const height = Math.max(node.scrollHeight, node.offsetHeight)
+
   return html2canvas(node, {
     backgroundColor: PAGE_BG,
-    scale: PDF_SCALE,
+    scale: isMobileViewport() ? MOBILE_SCALE : DESKTOP_SCALE,
     useCORS: true,
     logging: false,
     scrollX: 0,
     scrollY: 0,
-    windowWidth: node.scrollWidth,
-    windowHeight: node.scrollHeight,
+    width,
+    height,
+    windowWidth: width,
+    windowHeight: height,
   })
 }
 
@@ -83,7 +115,7 @@ function placeTall(
   }
 }
 
-export async function exportPdf(element: HTMLElement, input: BirthInput, result: AnalysisResult): Promise<void> {
+async function exportPdfInner(element: HTMLElement, input: BirthInput, result: AnalysisResult): Promise<void> {
   if (!element.offsetWidth || !element.offsetHeight) {
     throw new Error('報告內容尚未渲染完成')
   }
@@ -111,7 +143,8 @@ export async function exportPdf(element: HTMLElement, input: BirthInput, result:
   let cursorY = margin
   let isFirst = true
 
-  for (const block of blocks) {
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i]
     const canvas = await snapshot(block)
     if (!canvas.width || !canvas.height) continue
 
@@ -126,11 +159,13 @@ export async function exportPdf(element: HTMLElement, input: BirthInput, result:
         pdf.rect(0, 0, pageW, pageH, 'F')
       }
       placeTall(pdf, canvas, margin, contentW, contentH)
-      // placeTall 後游標已不可靠，直接換頁
-      pdf.addPage()
-      pdf.setFillColor(7, 13, 26)
-      pdf.rect(0, 0, pageW, pageH, 'F')
-      cursorY = margin
+      // placeTall 後游標已不可靠；只有後面還有區塊才換新頁
+      if (i < blocks.length - 1) {
+        pdf.addPage()
+        pdf.setFillColor(7, 13, 26)
+        pdf.rect(0, 0, pageW, pageH, 'F')
+        cursorY = margin
+      }
       isFirst = false
       continue
     }
@@ -149,4 +184,8 @@ export async function exportPdf(element: HTMLElement, input: BirthInput, result:
   }
 
   pdf.save(`${sanitizeFilename(input.name || '命盤')}_八字分析.pdf`)
+}
+
+export async function exportPdf(element: HTMLElement, input: BirthInput, result: AnalysisResult): Promise<void> {
+  await withPdfWidth(element, () => exportPdfInner(element, input, result))
 }
