@@ -24,6 +24,9 @@ export default function WugePanel({ wuge }: Props) {
       <div className="panel-header">
         <h3 className="section-title !mb-0">姓名五格</h3>
       </div>
+      <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs leading-relaxed text-amber-100">
+        姓名五格會受筆畫標準與字五行流派影響；此處列出目前資料庫計算值，結論需依使用者選定的筆畫標準確認後判讀。
+      </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {keys.map((key) => {
           const luck = wuge.luck[key]

@@ -11,26 +11,24 @@ interface Props {
 }
 
 export default function ShenshaPanel({ items }: Props) {
+  if (items.length === 0) return null
+
   return (
     <section className="card animate-fade-in p-4 sm:p-5">
       <h3 className="section-title mb-4">神煞</h3>
-      {items.length === 0 ? (
-        <p className="rounded-xl border border-white/5 bg-black/20 px-4 py-3 text-sm text-secondary">
-          四柱未見特殊神煞，命盤以正格五行論之。
-        </p>
-      ) : (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {items.map((s) => (
-            <div key={s.name} className={`rounded-xl border px-4 py-3 ${TYPE_STYLE[s.type] ?? TYPE_STYLE.中性}`}>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{s.name}</span>
-                <span className="rounded-full bg-black/20 px-2 py-0.5 text-[10px]">{s.type}</span>
-              </div>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted">{s.desc}</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {items.map((s) => (
+          <div key={s.name} className={`rounded-xl border px-4 py-3 ${TYPE_STYLE[s.type] ?? TYPE_STYLE.中性}`}>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{s.name}</span>
+              <span className="rounded-full bg-black/20 px-2 py-0.5 text-[10px]">{s.status || s.type}</span>
             </div>
-          ))}
-        </div>
-      )}
+            <p className="mt-1.5 text-xs leading-relaxed text-muted">{s.desc}</p>
+            {s.basis && <p className="mt-1 text-[10px] leading-relaxed text-muted">依據：{s.basis}</p>}
+            {s.trigger && s.trigger.length > 0 && <p className="mt-1 text-[10px] leading-relaxed text-muted">觸發：{s.trigger.join('、')}</p>}
+          </div>
+        ))}
+      </div>
     </section>
   )
 }

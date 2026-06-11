@@ -15,6 +15,8 @@ const RELATION_STYLE: Record<string, string> = {
   害: 'border-orange-500/30 bg-orange-500/5 text-orange-200',
   刑: 'border-purple-500/30 bg-purple-500/5 text-purple-200',
   合: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-200',
+  半合: 'border-blue-500/30 bg-blue-500/5 text-blue-200',
+  局: 'border-cyan-500/30 bg-cyan-500/5 text-cyan-200',
   和: 'border-white/10 bg-white/5 text-secondary',
 }
 
@@ -76,6 +78,11 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
   if (tab === '命盤') {
     return (
       <div className="space-y-4 p-2 sm:p-4">
+        {chart.sourceNotes && (
+          <div className="rounded-xl border border-[#f0c040]/20 bg-[#f0c040]/5 px-4 py-3 text-xs leading-relaxed text-secondary">
+            {chart.sourceNotes.join('；')}。
+          </div>
+        )}
         <ChartCircle chart={chart} />
         <TenGodDetailTable pillars={pillars} />
       </div>
@@ -85,6 +92,10 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
   if (tab === '五行') {
     return (
       <div className="space-y-4 p-4 sm:p-5">
+        <div className="rounded-xl border border-white/5 bg-black/20 p-3 text-xs leading-relaxed text-muted">
+          {result.elementModelNote}
+          {result.elementReason && <p className="mt-2 text-secondary">{result.elementReason}</p>}
+        </div>
         {elements.map((el) => (
           <div key={el} className="flex items-center gap-3">
             <span className={`w-6 text-sm font-semibold sm:w-8 ${ELEMENT_CLASS[el]}`}>{el}</span>
@@ -148,15 +159,23 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-3xl font-bold text-[#f0c040] sm:text-4xl">{strength}%</span>
-            <span className="text-sm text-secondary">身{strengthLabel}</span>
+            <span className="text-sm text-secondary">系統初判：{strengthLabel}</span>
           </div>
         </div>
+        <p className="mt-4 text-xs leading-relaxed text-muted">{result.strengthScoreNote}</p>
+        <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-white/5 bg-black/20 p-4 text-left">
+          <div className="mb-2 text-xs font-semibold text-[#f0c040]">判斷依據（可信度：{result.strengthConfidence || '中'}）</div>
+          <ul className="space-y-1 text-xs leading-relaxed text-secondary">
+            {(result.strengthBasis ?? []).map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </div>
         <div className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
-          <span className="text-muted">喜用神</span>
+          <span className="text-muted">喜用初判</span>
           {favorableElements.map((e) => (
             <span key={e} className={`rounded-full border border-white/10 bg-black/20 px-3 py-0.5 text-xs font-medium ${ELEMENT_CLASS[e]}`}>{e}</span>
           ))}
         </div>
+        {result.favorableNote && <p className="mt-3 text-xs text-muted">{result.favorableNote}</p>}
       </div>
     )
   }
@@ -164,6 +183,11 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
   if (tab === '刑沖') {
     return (
       <div className="space-y-2 p-4 sm:p-5">
+        {result.patternNote && (
+          <div className="mb-3 rounded-xl border border-[#f0c040]/20 bg-[#f0c040]/5 px-4 py-3 text-xs leading-relaxed text-secondary">
+            格局傾向：{result.pattern}。{result.patternNote}
+          </div>
+        )}
         {relations.map((r) => (
           <div key={r.label} className={`rounded-xl border px-4 py-3 text-sm ${RELATION_STYLE[r.type] ?? RELATION_STYLE.和}`}>
             <span className="mr-2 rounded-md bg-black/30 px-2 py-0.5 text-[10px] font-medium">{r.type}</span>
@@ -185,8 +209,9 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
               <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] text-secondary">{d.score}</span>
             </div>
             <div className="mt-1 text-xl font-bold text-[#f0c040]">{d.pillar}</div>
-            <div className="mt-1 text-xs text-muted">{d.tenGod} · {d.element}</div>
+            <div className="mt-1 text-xs text-muted">{d.tenGod} · {d.element} · 系統參考分數</div>
             <p className="mt-3 text-xs leading-relaxed text-secondary">{d.focus}</p>
+            {d.verificationNote && <p className="mt-2 text-[10px] leading-relaxed text-muted">{d.verificationNote}</p>}
           </div>
         ))}
       </div>
@@ -197,6 +222,7 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
     <div className="space-y-5 p-4 sm:p-5">
       <div>
         <h4 className="mb-3 text-xs font-semibold tracking-wide text-[#f0c040]">十年趨勢</h4>
+        {result.liunianNote && <p className="mb-3 text-xs leading-relaxed text-muted">{result.liunianNote}</p>}
         <div className="trend-grid mb-5">
           {tenYearTrend.map((t) => (
             <div key={t.year} className="trend-item">
@@ -205,7 +231,7 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
               <div className="mt-2 h-16 rounded-full bg-black/25 p-1">
                 <div className="mx-auto rounded-full bg-gradient-to-t from-[#d4a017] to-[#fde68a]" style={{ height: `${t.score}%`, width: '0.55rem' }} />
               </div>
-              <div className="mt-1 text-[10px] text-muted">{t.score}</div>
+              <div className="mt-1 text-[10px] text-muted">參考 {t.score}</div>
             </div>
           ))}
         </div>
@@ -226,13 +252,15 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
         </div>
       </div>
       <div>
-        <h4 className="mb-3 text-xs font-semibold tracking-wide text-[#f0c040]">{analysisYear} 年 · 流月</h4>
+        <h4 className="mb-3 text-xs font-semibold tracking-wide text-[#f0c040]">{analysisYear} 年 · 節氣流月</h4>
+        {result.liuyueNote && <p className="mb-3 text-xs leading-relaxed text-muted">{result.liuyueNote}</p>}
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
           {liuyueDetails.map((m) => (
             <div key={m.month} className="card-solid p-2.5 text-center sm:p-3">
               <div className="text-[10px] text-muted">{m.label}</div>
               <div className="mt-1 text-sm font-bold text-[#f0c040]">{m.pillar}</div>
-              <div className="mt-0.5 text-[10px] text-muted">{m.tenGod} · {m.score}</div>
+              <div className="mt-0.5 text-[10px] text-muted">{m.range}</div>
+              <div className="mt-0.5 text-[10px] text-muted">{m.tenGod} · 參考 {m.score}</div>
               <p className="mt-2 text-[10px] leading-relaxed text-secondary">{m.advice}</p>
             </div>
           ))}

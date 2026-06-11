@@ -2,9 +2,10 @@ import assert from 'node:assert/strict'
 import { createServer } from 'vite'
 
 const server = await createServer({
+  cacheDir: 'node_modules/.vite-tengods-test',
   logLevel: 'error',
   optimizeDeps: { entries: [], noDiscovery: true },
-  server: { middlewareMode: true },
+  server: { middlewareMode: true, hmr: false },
   appType: 'custom',
 })
 
@@ -35,6 +36,9 @@ try {
     isControlling,
     isGenerating,
   } = await server.ssrLoadModule('/src/lib/tenGods.ts')
+  const { computeBranchRelations } = await server.ssrLoadModule('/src/lib/relations.ts')
+  const { getLiunian, getLiuyue } = await server.ssrLoadModule('/src/lib/analysis.ts')
+  const { buildChartFromManual } = await server.ssrLoadModule('/src/lib/bazi.ts')
 
   assert.deepEqual(getStemInfo('癸'), { element: '水', polarity: '陰' })
   assert.equal(isGenerating('水', '木'), true)
@@ -52,6 +56,9 @@ try {
   assert.equal(getTenGod('癸', '辛'), '偏印')
   assert.equal(getTenGod('癸', '壬'), '劫財')
   assert.equal(getTenGod('癸', '癸'), '比肩')
+  assert.equal(getTenGod('癸', '丙'), '正財')
+  assert.equal(getTenGod('癸', '乙'), '食神')
+  assert.equal(getTenGod('癸', '庚'), '正印')
 
   assert.equal(getTenGod('甲', '庚'), '七殺')
   assert.equal(getTenGod('甲', '辛'), '正官')
@@ -62,6 +69,7 @@ try {
   assert.equal(getTenGod('甲', '壬'), '偏印')
   assert.equal(getTenGod('甲', '癸'), '正印')
 
+  assert.equal(getBranchTenGods('癸', '卯').mainQi.tenGod, '食神')
   assert.equal(getBranchTenGods('癸', '辰').mainQi.tenGod, '正官')
   assert.equal(getBranchTenGods('癸', '丑').mainQi.tenGod, '七殺')
   assert.equal(getBranchTenGods('癸', '子').mainQi.tenGod, '比肩')
@@ -100,6 +108,24 @@ try {
   assertPillar(caseThree.hour, { stemTenGod: '傷官', branchMainQi: '正印', hiddenStems: ['戊:正印', '乙:偏財', '癸:食神'] })
 
   assert.equal(caseOne.day.stemTenGod, '日主')
+
+  const relations = computeBranchRelations(['卯', '辰', '丑', '子']).map((item) => item.label)
+  assert.deepEqual(relations, ['卯辰害', '子丑合', '子卯無禮之刑', '子辰半合水'])
+  assert.equal(relations.includes('辰辰自刑'), false)
+  assert.equal(relations.includes('申子辰三合水局'), false)
+
+  const chart = buildChartFromManual({ year: '丁卯', month: '甲辰', day: '癸丑', hour: '壬子' })
+  assert.ok(chart)
+  const liunian2026 = getLiunian(chart, 2026, 1)[0]
+  assert.equal(liunian2026.pillar, '丙午')
+  assert.equal(liunian2026.tenGod, '正財')
+  assert.equal(liunian2026.summary.includes('金水喜用'), false)
+
+  const liuyue2026 = getLiuyue(chart, 2026)
+  assert.equal(liuyue2026[0].label, '正月')
+  assert.equal(liuyue2026[0].pillar, '庚寅')
+  assert.notEqual(liuyue2026[0].pillar, '己丑')
+
   assertThrowsMessage(() => getTenGod('A', '丁'), 'Invalid stem')
   assertThrowsMessage(() => getBranchHiddenStems('貓'), 'Invalid branch')
   assertThrowsMessage(() => getTenGod('', '丁'), 'Missing required input')

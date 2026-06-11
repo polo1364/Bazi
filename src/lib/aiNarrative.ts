@@ -78,9 +78,9 @@ export function buildChartContext(input: BirthInput, result: AnalysisResult): st
     relations.length
       ? `【刑沖合害】${relations.map((r) => `${r.type}：${r.label}（${r.desc}）`).join('；')}`
       : '【刑沖合害】無明顯刑沖',
-    shensha.length
-      ? `【神煞】${shensha.map((s) => `${s.name}（${s.type}）${s.desc}`).join('；')}`
-      : '',
+    shensha.some((s) => s.status === '成立')
+      ? `【神煞】${shensha.filter((s) => s.status === '成立').map((s) => `${s.name}（${s.type}）${s.desc}`).join('；')}`
+      : '【神煞】公式尚未完整校驗，本次不作神煞吉凶結論',
     `【${year}流年】${liunian.find((l) => l.year === year)?.pillar ?? ''} ${liunian.find((l) => l.year === year)?.tenGod ?? ''} ${liunian.find((l) => l.year === year)?.nayin ?? ''}`,
     dayunDetails.length
       ? `【大運】${dayunDetails.map((d) => `${d.age}${d.pillar}${d.tenGod}(${d.score})`).join('；')}`
@@ -140,21 +140,23 @@ function parseAiJson(content: string): AiNarrativeResult {
       }
     }
   }
-  if (!parsed.summary || !parsed.detailText || !parsed.topicAnalysis || !parsed.sections) {
-    throw new Error('AI 回覆格式不完整')
-  }
+  const raw = content.trim()
+  const summary = parsed.summary?.trim() || parsed.detailText?.trim() || parsed.topicAnalysis?.trim() || raw
+  const detailText = parsed.detailText?.trim() || summary
+  const topicAnalysis = parsed.topicAnalysis?.trim() || summary
+  const sections = parsed.sections ?? {} as Partial<AiSections>
   return {
-    summary: parsed.summary.trim(),
-    detailText: parsed.detailText.trim(),
-    topicAnalysis: parsed.topicAnalysis.trim(),
+    summary,
+    detailText,
+    topicAnalysis,
     sections: {
-      career: parsed.sections.career?.trim() || '',
-      wealth: parsed.sections.wealth?.trim() || '',
-      relationship: parsed.sections.relationship?.trim() || '',
-      health: parsed.sections.health?.trim() || '',
-      yearly: parsed.sections.yearly?.trim() || '',
-      nameAdvice: parsed.sections.nameAdvice?.trim() || '',
-      remedies: parsed.sections.remedies?.trim() || '',
+      career: sections.career?.trim() || '',
+      wealth: sections.wealth?.trim() || '',
+      relationship: sections.relationship?.trim() || '',
+      health: sections.health?.trim() || '',
+      yearly: sections.yearly?.trim() || '',
+      nameAdvice: sections.nameAdvice?.trim() || '',
+      remedies: sections.remedies?.trim() || '',
     },
   }
 }
@@ -241,6 +243,7 @@ export async function generateAiNarrative(
 - 語氣親切自然，像面對面交談，有溫度、具體、不空泛
 - 語氣風格：${TONE_TEXT[settings.tone]}
 - 只使用資料中已有的數據，不得捏造四柱、數值或神煞
+- 若資料標示為初判或需確認，請簡短帶過，不要在每段重複「未驗證」
 - 可給務實建議，但避免絕對化斷語（如「一定發財」）
 - 一律使用繁體中文`,
     },
@@ -250,7 +253,7 @@ export async function generateAiNarrative(
 
 ${context}
 
-請輸出 JSON（純 JSON，不要 markdown 程式碼框），格式：
+請輸出 JSON（純 JSON，不要 markdown 程式碼框）。所有欄位都要存在；若某段沒有資料，請填入空字串，不要省略欄位。格式：
 {
   "summary": "命盤總結：3-5 個短段落，用 \\n\\n 分隔。含日主性格、身強弱與喜用、格局與五行重點、姓名五格（若有）。",
   "detailText": "完整解讀：一段較長的連貫文字，整合四柱、生肖、神煞、流年與姓名，約 200-350 字。",

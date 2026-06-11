@@ -1,6 +1,6 @@
 import { getAllCustomStrokes } from '../db'
 import type { BaziChart, RelationItem } from '../types'
-import { pillarsToArray } from './bazi'
+import { computeChartRelations as computeRelationsByRules } from './relations'
 import {
   computeNayin, computeWugeLuck, evaluateSancaiBuiltin, getCharMeaningFallback,
   getPatternBuiltin, numToElementBuiltin, normalizeWugeNumber,
@@ -373,78 +373,12 @@ export function getBranchProfile(branch: string): StemBranchEntry | null {
 }
 
 export function computeChartRelations(chart: BaziChart): RelationItem[] {
-  const db = cache.relations
-  if (!db) return []
-  const branches = pillarsToArray(chart).map((p) => p.branch)
-  const items: RelationItem[] = []
-
-  for (const r of db.六沖) {
-    const [a, b] = r.pair ?? []
-    if (a && b && branches.includes(a) && branches.includes(b)) {
-      items.push({ type: '沖', label: r.name, desc: r.desc })
-    }
-  }
-  for (const r of db.六害) {
-    const [a, b] = r.pair ?? []
-    if (a && b && branches.includes(a) && branches.includes(b)) {
-      items.push({ type: '害', label: r.name, desc: r.desc })
-    }
-  }
-  for (const r of db.六合) {
-    const [a, b] = r.pair ?? []
-    if (a && b && branches.includes(a) && branches.includes(b)) {
-      items.push({ type: '合', label: r.name, desc: r.desc })
-    }
-  }
-  for (const r of db.三刑) {
-    const chars = r.chars ?? []
-    if (chars.length === 2) {
-      if (chars.every((c) => branches.includes(c))) {
-        items.push({ type: '刑', label: r.name, desc: r.desc })
-      }
-    } else if (chars.length >= 2 && chars.filter((c) => branches.includes(c)).length >= 2) {
-      items.push({ type: '刑', label: r.name, desc: r.desc })
-    }
-  }
-  for (const r of db.三合) {
-    const chars = r.chars ?? []
-    const matched = chars.filter((c) => branches.includes(c))
-    if (matched.length >= 2) {
-      items.push({ type: '局', label: r.name, desc: `${r.element ?? ''}局，${matched.length >= 3 ? '三合完備' : '半合'}`.trim() })
-    }
-  }
-  if (!items.length) items.push({ type: '和', label: '四柱平和', desc: '未見明顯刑沖合害' })
-  return items
+  return computeRelationsByRules(chart)
 }
 
-const MONTH_LABELS = ['正月','二月','三月','四月','五月','六月','七月','八月','九月','十月','冬月','臘月']
-
 export function computeShensha(chart: BaziChart): { name: string; type: string; desc: string; found: boolean }[] {
-  const defs = cache.shensha ?? {}
-  const branches = pillarsToArray(chart).map((p) => p.branch)
-  const dayStem = chart.day.stem
-  const monthBranch = chart.month.branch
-  const monthLabel = MONTH_LABELS[(['寅','卯','辰','巳','午','未','申','酉','戌','亥','子','丑'].indexOf(monthBranch) + 12) % 12]
-
-  const results: { name: string; type: string; desc: string; found: boolean }[] = []
-
-  for (const [name, def] of Object.entries(defs)) {
-    let found = false
-    if (def.lookupBy === 'branch') {
-      for (const b of branches) {
-        const targets = def.lookup[b] ?? []
-        if (targets.some((t) => branches.includes(t))) found = true
-      }
-    } else if (def.lookupBy === 'month') {
-      const targets = def.lookup[monthLabel] ?? []
-      found = targets.some((t) => branches.includes(t) || pillarsToArray(chart).some((p) => p.stem === t))
-    } else {
-      const targets = def.lookup[dayStem] ?? []
-      found = targets.some((t) => branches.includes(t))
-    }
-    if (found) results.push({ name, type: def.type, desc: def.desc, found: true })
-  }
-  return results
+  void chart
+  return []
 }
 
 export function getDatabaseStats(): DatabaseStats {

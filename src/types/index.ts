@@ -77,11 +77,13 @@ export interface DayunDetail {
   element: Element
   focus: string
   score: number
+  verificationNote?: string
 }
 
 export interface LiuyueDetail extends LiuyueItem {
   score: number
   advice: string
+  range?: string
 }
 
 export interface TrendItem {
@@ -120,6 +122,10 @@ export interface BaziChart {
   hour: Pillar
   dayMaster: string
   dayMasterElement: Element
+  source?: 'lunar-javascript' | 'manual'
+  sourceNotes?: string[]
+  solarText?: string
+  lunarText?: string
 }
 
 export interface ElementStats {
@@ -167,15 +173,20 @@ export interface WugeResult {
 
 export interface ShenshaItem {
   name: string
+  status?: '成立' | '未驗證'
   type: string
   desc: string
   found: boolean
+  basis?: string
+  trigger?: string[]
 }
 
 export interface RelationItem {
   type: string
   label: string
   desc: string
+  name?: string
+  branches?: string[]
 }
 
 export interface LiunianItem {
@@ -191,6 +202,7 @@ export interface LiuyueItem {
   label: string
   pillar: string
   tenGod: string
+  range?: string
 }
 
 export interface AnalysisResult {
@@ -202,6 +214,7 @@ export interface AnalysisResult {
   strongestElement: Element
   weakestElement: Element
   pattern: string
+  patternNote?: string
   summary: string
   detailText: string
   topicAnalysis: string
@@ -217,6 +230,18 @@ export interface AnalysisResult {
   elementAdvice: ElementAdvice[]
   shensha: ShenshaItem[]
   daymasterProfile?: string
+  elementModelNote?: string
+  elementReason?: string
+  strengthScoreNote?: string
+  strengthBasis?: string[]
+  strengthConfidence?: string
+  favorableNote?: string
+  unfavorableElements?: Element[]
+  dayunNote?: string
+  liunianNote?: string
+  liuyueNote?: string
+  nameValidationNote?: string
+  shenshaNote?: string
 }
 
 export interface BirthInput {

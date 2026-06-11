@@ -233,8 +233,10 @@ function drawCover(layout: PdfLayout, input: BirthInput, result: AnalysisResult)
   layout.text(input.name || '未命名命盤', 230, 565, 21, COLORS.text)
   layout.page.drawLine({ start: { x: 215, y: 520 }, end: { x: 380, y: 520 }, thickness: 1, color: COLORS.gold })
   layout.text(`四柱：${pillars}`, 150, 470, 13, COLORS.muted)
-  layout.text(`日主：${result.chart.dayMaster}（身${result.strengthLabel}）`, 200, 440, 13, COLORS.muted)
-  layout.text(`喜用：${result.favorableElements.join('、')}｜主題：${input.topic || '整體運勢'}`, 145, 410, 13, COLORS.muted)
+  layout.text(`日主：${result.chart.dayMaster}（身強弱：${result.strengthLabel}，系統初判）`, 155, 440, 13, COLORS.muted)
+  layout.text(`喜用初判：${result.favorableElements.join('、')}｜主題：${input.topic || '整體運勢'}`, 145, 410, 13, COLORS.muted)
+  layout.text(`四柱排盤來源：${result.chart.source === 'lunar-javascript' ? 'lunar-javascript' : '使用者輸入'}`, 180, 388, 10, COLORS.muted)
+  layout.text('本報告為命理模型分析，提供結構化參考，不作絕對定論。', 130, 365, 10, COLORS.muted)
   layout.text(`產生日期：${new Date().toLocaleDateString('zh-TW')}`, 222, 135, 10, COLORS.muted)
 }
 
@@ -251,11 +253,13 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
   layout.ensure(PAGE_H)
 
   const pillars = pillarsToArray(result.chart)
-  layout.title('命盤總覽')
+  layout.title('命盤總覽與十神')
   layout.card(input.name || '未命名命盤', [
+    `四柱排盤來源：${result.chart.source === 'lunar-javascript' ? 'lunar-javascript' : '使用者輸入'}`,
+    '十神、藏干、刑沖合害、五行強弱與文案由本系統規則引擎計算',
     `四柱：${pillars.map((p) => `${p.label}${p.stem}${p.branch}`).join('　')}`,
-    `日主：${result.chart.dayMaster}${result.chart.dayMasterElement}｜身${result.strengthLabel} ${result.strength}%｜喜用：${result.favorableElements.join('、')}`,
-    `格局：${result.pattern}｜五行最旺：${result.strongestElement}｜最弱：${result.weakestElement}`,
+    `日主：${result.chart.dayMaster}${result.chart.dayMasterElement}｜身強弱：${result.strengthLabel}（系統初判）`,
+    `喜用初判：${result.favorableElements.join('、')}${result.unfavorableElements?.length ? `｜需留意：${result.unfavorableElements.join('、')}` : ''}`,
   ], { accent: COLORS.gold })
 
   layout.title('四柱與十神')
@@ -289,7 +293,9 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
     [45, 110, 180, 190],
   )
 
-  layout.title('五行強弱')
+  layout.ensure(PAGE_H)
+  layout.title('五行與身強弱')
+  layout.paragraph(result.elementModelNote || '')
   ;(['木', '火', '土', '金', '水'] as Element[]).forEach((el) => {
     const value = result.elementStats[el]
     layout.ensure(26)
@@ -299,8 +305,22 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
     layout.text(value.toFixed(1), MARGIN + 372, layout.y - 13, 9, COLORS.muted)
     layout.y -= 24
   })
+  layout.card('五行相對結果', [
+    `五行最旺：${result.strongestElement}`,
+    `五行最弱：${result.weakestElement}`,
+    result.elementReason || '',
+  ])
+  layout.card('日主旺弱判斷依據', [
+    `身強弱：${result.strengthLabel}；參考分數：${result.strength}%`,
+    result.strengthScoreNote || '',
+    ...(result.strengthBasis ?? []),
+    `可信度：${result.strengthConfidence || '中'}`,
+    `喜用初判：${result.favorableElements.join('、')}${result.unfavorableElements?.length ? `；需留意：${result.unfavorableElements.join('、')}` : ''}`,
+    result.favorableNote || '',
+  ], { accent: COLORS.gold })
   layout.card('喜用神補強', result.elementAdvice.map((a) => `${a.element}：顏色 ${a.colors.join('、')}；方位 ${a.directions.join('、')}；職業 ${a.careers.join('、')}；習慣 ${a.habits.join('、')}`))
 
+  layout.ensure(PAGE_H)
   layout.title('命盤總結')
   layout.paragraph(result.summary)
   layout.paragraph(result.detailText)
@@ -315,18 +335,35 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
   layout.card('姓名建議', [sectionText(result, 'nameAdvice', '尚未產生 AI 姓名建議')])
   layout.card('喜用補強', [sectionText(result, 'remedies', '尚未產生 AI 喜用補強建議')])
 
-  layout.table('大運詳細分析', result.dayunDetails.map((d) => [d.age, d.pillar, d.tenGod, `${d.score}`, d.focus]), [60, 55, 55, 35, 300])
-  layout.table('十年趨勢', result.tenYearTrend.map((t) => [`${t.year}`, t.pillar, t.label, `${t.score}`, t.summary]), [55, 55, 40, 40, 315])
+  layout.ensure(PAGE_H)
+  layout.title('大運')
+  layout.paragraph(result.dayunNote || '')
+  layout.table('大運詳細分析', result.dayunDetails.map((d) => [d.age, d.pillar, d.tenGod, `參考 ${d.score}`, d.focus]), [95, 55, 55, 55, 265])
+
+  layout.ensure(PAGE_H)
+  layout.title('流年與流月')
+  layout.paragraph(result.liunianNote || '')
   layout.table('流年', result.liunian.map((l) => [`${l.year}`, l.pillar, l.tenGod, l.nayin, l.summary]), [55, 55, 60, 75, 260])
-  layout.table('流月', result.liuyueDetails.map((m) => [m.label, m.pillar, m.tenGod, `${m.score}`, m.advice]), [50, 55, 60, 40, 300])
+  layout.paragraph(result.liuyueNote || '')
+  layout.table('節氣流月', result.liuyueDetails.map((m) => [m.label, m.range || '', m.pillar, m.tenGod, m.advice]), [45, 90, 55, 60, 275])
 
   if (result.relations.length) {
-    layout.table('刑沖合害', result.relations.map((r) => [r.type, r.label, r.desc]), [45, 120, 360])
+    layout.ensure(PAGE_H)
+    layout.title('格局與刑沖合害')
+    layout.card('格局傾向', [`格局傾向：${result.pattern}`, result.patternNote || ''], { accent: COLORS.gold })
+    layout.table('刑沖合害成立項', result.relations.map((r) => [r.type, r.label, r.branches?.join('、') || '', r.desc]), [45, 120, 80, 280])
+    layout.card('排除說明', [
+      '自刑必須同一地支至少出現兩次才成立。',
+      '三合局必須三個地支全部出現才成立。',
+      '半合只能寫半合，不可寫成完整三合局；六合只列合，不直接宣稱合化。',
+    ])
   }
 
   if (result.wuge && result.wuge.總格 > 0) {
     const w = result.wuge
-    layout.title('姓名五格')
+    layout.ensure(PAGE_H)
+    layout.title('姓名與神煞')
+    layout.paragraph(result.nameValidationNote || '')
     layout.table('五格數理', [
       ['天格', `${w.天格}`, w.luck.天格, w.details.天格?.meaning || ''],
       ['人格', `${w.人格}`, w.luck.人格, w.details.人格?.meaning || ''],
@@ -335,12 +372,17 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
       ['總格', `${w.總格}`, w.luck.總格, w.details.總格?.meaning || ''],
     ], [55, 45, 55, 380])
     if (w.charAnalysis.length) {
-      layout.table('姓名字義與五行', w.charAnalysis.map((c) => [c.char, `${c.strokes}劃`, c.wuxing, c.meaning]), [45, 55, 45, 390])
+      layout.table('姓名字義與五行', w.charAnalysis.map((c) => [c.char, `${c.strokes}劃`, c.wuxing || '需確認', c.meaning || '需確認']), [45, 65, 65, 350])
     }
   }
 
   if (result.shensha.length) {
-    layout.table('神煞', result.shensha.map((s) => [s.name, s.type, s.desc]), [75, 55, 390])
+    if (!result.wuge || result.wuge.總格 <= 0) {
+      layout.ensure(PAGE_H)
+      layout.title('姓名與神煞')
+    }
+    layout.paragraph(result.shenshaNote || '')
+    layout.table('神煞', result.shensha.map((s) => [s.name, s.status || s.type, s.basis || '依據資料表', s.desc]), [75, 55, 120, 275])
   }
 
   if (result.aiQuestions?.length) {

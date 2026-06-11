@@ -1,21 +1,15 @@
 import type { BaziChart, Pillar } from '../types'
 import {
   STEMS, BRANCHES, STEM_ELEMENTS, BRANCH_ELEMENTS,
-  getMonthStemIndex, getHourStemIndex,
+  getMonthStemIndex,
 } from './constants'
-import { getBaziYear, getBaziMonthBranch, getHourBranch } from './solarTerms'
+import { getBaziYear, getBaziMonthBranch } from './solarTerms'
 import { computeNayin } from './builtinData'
 import { getBranchTenGods, getTenGod } from './tenGods'
+import { getBaziFromSolarDate } from './lunarAdapter.js'
 
 function nayinText(gz: string): string {
   return computeNayin(gz)?.nayin ?? '大海水'
-}
-
-function getDayGanZhi(y: number, m: number, d: number): [number, number] {
-  const base = Date.UTC(1900, 0, 31)
-  const cur = Date.UTC(y, m - 1, d)
-  const offset = Math.floor((cur - base) / 86400000)
-  return [((offset % 10) + 10) % 10, ((offset + 4) % 12 + 12) % 12]
 }
 
 function parseGanZhi(gz: string): [number, number] | null {
@@ -25,6 +19,29 @@ function parseGanZhi(gz: string): [number, number] | null {
   const bi = BRANCHES.indexOf(s[1] as typeof BRANCHES[number])
   if (si < 0 || bi < 0) return null
   return [si, bi]
+}
+
+function buildChartFromParts(
+  pillars: { year: { stem: string; branch: string }; month: { stem: string; branch: string }; day: { stem: string; branch: string }; hour: { stem: string; branch: string } },
+  extra?: Pick<BaziChart, 'source' | 'sourceNotes' | 'solarText' | 'lunarText'>,
+): BaziChart | null {
+  const y = parseGanZhi(pillars.year.stem + pillars.year.branch)
+  const m = parseGanZhi(pillars.month.stem + pillars.month.branch)
+  const d = parseGanZhi(pillars.day.stem + pillars.day.branch)
+  const h = parseGanZhi(pillars.hour.stem + pillars.hour.branch)
+  if (!y || !m || !d || !h) return null
+
+  const dayMaster = STEMS[d[0]]
+  const dmElement = STEM_ELEMENTS[dayMaster]
+  return {
+    year: buildPillar('年柱', y[0], y[1], dayMaster),
+    month: buildPillar('月柱', m[0], m[1], dayMaster),
+    day: buildPillar('日柱', d[0], d[1], dayMaster),
+    hour: buildPillar('時柱', h[0], h[1], dayMaster),
+    dayMaster,
+    dayMasterElement: dmElement,
+    ...extra,
+  }
 }
 
 function buildPillar(label: string, stemIdx: number, branchIdx: number, dayMaster: string): Pillar {
@@ -50,28 +67,15 @@ function buildPillar(label: string, stemIdx: number, branchIdx: number, dayMaste
 }
 
 export function calculateBazi(year: number, month: number, day: number, hour: number): BaziChart {
-  const date = new Date(year, month - 1, day, hour)
-  const baziYear = getBaziYear(date)
-
-  const yearStemIdx = ((baziYear - 4) % 10 + 10) % 10
-  const yearBranchIdx = ((baziYear - 4) % 12 + 12) % 12
-  const monthBranchIdx = getBaziMonthBranch(date)
-  const monthStemIdx = getMonthStemIndex(yearStemIdx, monthBranchIdx)
-  const [dayStemIdx, dayBranchIdx] = getDayGanZhi(year, month, day)
-  const hourBranchIdx = getHourBranch(hour)
-  const hourStemIdx = getHourStemIndex(dayStemIdx, hourBranchIdx)
-
-  const dayMaster = STEMS[dayStemIdx]
-  const dmElement = STEM_ELEMENTS[dayMaster]
-
-  return {
-    year: buildPillar('年柱', yearStemIdx, yearBranchIdx, dayMaster),
-    month: buildPillar('月柱', monthStemIdx, monthBranchIdx, dayMaster),
-    day: buildPillar('日柱', dayStemIdx, dayBranchIdx, dayMaster),
-    hour: buildPillar('時柱', hourStemIdx, hourBranchIdx, dayMaster),
-    dayMaster,
-    dayMasterElement: dmElement,
-  }
+  const lunarResult = getBaziFromSolarDate({ year, month, day, hour })
+  const chart = buildChartFromParts(lunarResult.pillars, {
+    source: 'lunar-javascript',
+    sourceNotes: lunarResult.notes,
+    solarText: lunarResult.solarText,
+    lunarText: lunarResult.lunarText,
+  })
+  if (!chart) throw new Error('Invalid pillar format')
+  return chart
 }
 
 export function buildChartFromManual(pillars: { year: string; month: string; day: string; hour: string }): BaziChart | null {
@@ -91,6 +95,8 @@ export function buildChartFromManual(pillars: { year: string; month: string; day
     hour: buildPillar('時柱', h[0], h[1], dayMaster),
     dayMaster,
     dayMasterElement: dmElement,
+    source: 'manual',
+    sourceNotes: ['四柱由使用者輸入', '十神、藏干、刑沖合害、強弱與文案由本系統規則引擎計算'],
   }
 }
 
