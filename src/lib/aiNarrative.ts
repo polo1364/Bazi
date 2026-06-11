@@ -112,7 +112,14 @@ export async function callDeepSeek(
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { error?: string }
-      throw new Error(err.error || `代理 API 錯誤 (${res.status})`)
+      let message = err.error || `代理 API 錯誤 (${res.status})`
+      try {
+        const parsed = JSON.parse(message) as { error?: { message?: string } }
+        message = parsed.error?.message || message
+      } catch {
+        // keep upstream text
+      }
+      throw new Error(message)
     }
     const data = await res.json() as { choices?: { message?: { content?: string } }[] }
     const content = data.choices?.[0]?.message?.content

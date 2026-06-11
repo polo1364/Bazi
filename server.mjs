@@ -130,19 +130,21 @@ async function handleDeepseek(req, res) {
   }
 
   try {
+    const upstreamPayload = {
+      model: body.model || 'deepseek-chat',
+      messages,
+      temperature: body.temperature ?? 0.75,
+      max_tokens: body.max_tokens ?? 2000,
+      ...(body.response_format ? { response_format: body.response_format } : {}),
+    }
+
     const upstream = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: body.model || 'deepseek-chat',
-        messages,
-        temperature: body.temperature ?? 0.75,
-        max_tokens: body.max_tokens ?? 2000,
-        response_format: { type: 'json_object' },
-      }),
+      body: JSON.stringify(upstreamPayload),
     })
 
     const text = await upstream.text()
