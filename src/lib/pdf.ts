@@ -70,7 +70,9 @@ async function loadChineseFont(pdfDoc: PDFDocument): Promise<PDFFont> {
   pdfDoc.registerFontkit(fontkit)
   const res = await fetch(FONT_URL)
   if (!res.ok) throw new Error('中文字型載入失敗，請確認 public/fonts/msjh.ttc 已上傳')
-  return pdfDoc.embedFont(await res.arrayBuffer(), { subset: true })
+  // Windows 的 msjh.ttc 是 TrueType Collection；fontkit 可讀取，但不支援 createSubset。
+  // 因此這裡完整嵌入字型，避免 pdf-lib 子集化時拋出 createSubset 錯誤。
+  return pdfDoc.embedFont(await res.arrayBuffer(), { subset: false })
 }
 
 function saveBytes(bytes: Uint8Array, filename: string) {
