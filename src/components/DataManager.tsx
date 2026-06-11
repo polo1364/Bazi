@@ -64,8 +64,8 @@ export default function DataManager({ onClose }: Props) {
   const total = DB_LABELS.reduce((s, { key }) => s + stats[key], 0)
 
   return (
-    <div className="overlay fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" onClick={onClose}>
-      <div className="card-solid animate-fade-in max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl p-5 sm:rounded-2xl"
+    <div className="data-modal-backdrop overlay fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" onClick={onClose}>
+      <div className="data-modal card-solid animate-fade-in max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl p-5 sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}>
         <div className="mb-5 flex items-center justify-between">
           <h3 className="section-title">資料庫管理</h3>
@@ -73,14 +73,14 @@ export default function DataManager({ onClose }: Props) {
             className="flex h-8 w-8 items-center justify-center rounded-lg text-secondary transition hover:bg-white/5 hover:text-white">✕</button>
         </div>
 
-        <div className="mb-4 rounded-xl border border-[#f0c040]/20 bg-[#f0c040]/5 px-4 py-3 text-center">
+        <div className="data-total mb-4 rounded-xl border border-[#f0c040]/20 bg-[#f0c040]/5 px-4 py-3 text-center">
           <div className="text-2xl font-bold text-[#f0c040]">{total.toLocaleString()}+</div>
           <div className="text-xs text-muted">本地資料庫條目總計</div>
         </div>
 
-        <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="data-grid mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {DB_LABELS.map(({ key, label }) => (
-            <div key={key} className="rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+            <div key={key} className="data-stat rounded-lg border border-white/5 bg-black/20 px-3 py-2">
               <div className="text-lg font-bold text-secondary">{stats[key].toLocaleString()}</div>
               <div className="text-[10px] text-muted">{label}</div>
             </div>

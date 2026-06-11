@@ -17,7 +17,7 @@ export default function HistoryPanel({ records, onLoad, onDelete, onSave, canSav
   }, [records.length])
 
   return (
-    <section className="card overflow-hidden">
+    <section className="history-card card overflow-hidden">
       <div className="flex items-center justify-between gap-3 p-4 sm:p-5">
         <button
           type="button"
