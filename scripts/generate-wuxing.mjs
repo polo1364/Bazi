@@ -1,0 +1,44 @@
+/**
+ * 五行生克制化資料庫
+ */
+import { writeFileSync, mkdirSync } from 'fs'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
+const data = {
+  elements: {
+    木: { season: '春', direction: '東', color: '青綠', organ: '肝膽', emotion: '怒', taste: '酸', number: [3, 8] },
+    火: { season: '夏', direction: '南', color: '赤紅', organ: '心小腸', emotion: '喜', taste: '苦', number: [2, 7] },
+    土: { season: '四季', direction: '中', color: '黃', organ: '脾胃', emotion: '思', taste: '甘', number: [5, 10] },
+    金: { season: '秋', direction: '西', color: '白', organ: '肺大腸', emotion: '悲', taste: '辛', number: [4, 9] },
+    水: { season: '冬', direction: '北', color: '黑藍', organ: '腎膀胱', emotion: '恐', taste: '鹹', number: [1, 6] },
+  },
+  generates: { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' },
+  controls: { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' },
+  relations: {
+    相生: '木生火、火生土、土生金、金生水、水生木。相生主扶持、流通、成長。',
+    相剋: '木剋土、土剋水、水剋火、火剋金、金剋木。相剋主制約、壓力、平衡。',
+    比和: '同五行相見為比和，主同類相助或競爭。',
+  },
+  strength: {
+    旺: '當令或得生多，該五行力量強',
+    相: '被當令五行所生，次旺',
+    休: '生當令五行，力量休退',
+    囚: '被當令五行所剋，力量受制',
+    死: '剋當令五行，力量最弱',
+  },
+  bodyParts: {
+    木: '肝、膽、筋、目、頭',
+    火: '心、小腸、血脈、舌',
+    土: '脾、胃、肌肉、口',
+    金: '肺、大腸、皮毛、鼻',
+    水: '腎、膀胱、骨、耳',
+  },
+}
+
+const outDir = join(__dirname, '..', 'public', 'data')
+mkdirSync(outDir, { recursive: true })
+writeFileSync(join(outDir, 'wuxing.json'), JSON.stringify(data, null, 2))
+console.log('wuxing.json: 五行生克 + 臟腑 + 旺衰')

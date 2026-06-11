@@ -1,0 +1,55 @@
+/**
+ * 刑沖合害完整參考
+ */
+import { writeFileSync, mkdirSync } from 'fs'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
+const data = {
+  六沖: [
+    { pair: ['子','午'], name: '子午沖', desc: '水火相沖，主變動、對立、情緒起伏' },
+    { pair: ['丑','未'], name: '丑未沖', desc: '土土相沖，主田產、脾胃、固執' },
+    { pair: ['寅','申'], name: '寅申沖', desc: '木金相沖，主遷動、交通、競爭' },
+    { pair: ['卯','酉'], name: '卯酉沖', desc: '木金相沖，主感情、口舌、手術' },
+    { pair: ['辰','戌'], name: '辰戌沖', desc: '土土相沖，主官非、地產、衝突' },
+    { pair: ['巳','亥'], name: '巳亥沖', desc: '火水相沖，主驚嚇、奔波、變化' },
+  ],
+  六合: [
+    { pair: ['子','丑'], name: '子丑合土', desc: '合化土，主合作、穩定、資源整合' },
+    { pair: ['寅','亥'], name: '寅亥合木', desc: '合化木，主成長、貴人、計畫' },
+    { pair: ['卯','戌'], name: '卯戌合火', desc: '合化火，主熱情、名望、創意' },
+    { pair: ['辰','酉'], name: '辰酉合金', desc: '合化金，主契約、財富、紀律' },
+    { pair: ['巳','申'], name: '巳申合水', desc: '合化水，主智慧、流通、機會' },
+    { pair: ['午','未'], name: '午未合土', desc: '合化土，主包容、家庭、積累' },
+  ],
+  六害: [
+    { pair: ['子','未'], name: '子未害', desc: '相害，暗中阻礙、小人' },
+    { pair: ['丑','午'], name: '丑午害', desc: '相害，情緒、健康需留意' },
+    { pair: ['寅','巳'], name: '寅巳害', desc: '相害，口舌、官非' },
+    { pair: ['卯','辰'], name: '卯辰害', desc: '相害，人際、感情摩擦' },
+    { pair: ['申','亥'], name: '申亥害', desc: '相害，計畫受阻' },
+    { pair: ['酉','戌'], name: '酉戌害', desc: '相害，破財、是非' },
+  ],
+  三刑: [
+    { chars: ['寅','巳','申'], name: '寅巳申無恩之刑', desc: '恩將仇報，易有官非、衝動' },
+    { chars: ['丑','戌','未'], name: '丑戌未恃勢之刑', desc: '仗勢欺人，固執、衝突' },
+    { chars: ['子','卯'], name: '子卯無禮之刑', desc: '無禮之刑，感情、溝通問題' },
+    { chars: ['辰','辰'], name: '辰自刑', desc: '自刑，鑽牛角尖' },
+    { chars: ['午','午'], name: '午自刑', desc: '自刑，情緒、心臟' },
+    { chars: ['酉','酉'], name: '酉自刑', desc: '自刑，完美主義、孤獨' },
+    { chars: ['亥','亥'], name: '亥自刑', desc: '自刑，多慮、猶豫' },
+  ],
+  三合: [
+    { chars: ['申','子','辰'], element: '水', name: '申子辰水局' },
+    { chars: ['亥','卯','未'], element: '木', name: '亥卯未木局' },
+    { chars: ['寅','午','戌'], element: '火', name: '寅午戌火局' },
+    { chars: ['巳','酉','丑'], element: '金', name: '巳酉丑金局' },
+  ],
+}
+
+const outDir = join(__dirname, '..', 'public', 'data')
+mkdirSync(outDir, { recursive: true })
+writeFileSync(join(outDir, 'relations.json'), JSON.stringify(data, null, 2))
+console.log('relations.json: 六沖六合六害三刑三合')
