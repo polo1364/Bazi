@@ -26,6 +26,43 @@ const ELEMENT_BAR: Record<string, string> = {
   水: 'bg-gradient-to-r from-blue-600 to-blue-400',
 }
 
+function TenGodDetailTable({ pillars }: { pillars: ReturnType<typeof pillarsToArray> }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+      <div className="border-b border-white/10 px-4 py-3">
+        <h4 className="text-sm font-bold text-[#f0c040]">十神詳表</h4>
+        <p className="mt-1 text-xs text-muted">地支十神由地支藏干逐一計算，第一個藏干為主氣。</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-xs">
+          <thead className="bg-white/5 text-muted">
+            <tr>
+              <th className="px-3 py-2 font-medium">柱位</th>
+              <th className="px-3 py-2 font-medium">干支</th>
+              <th className="px-3 py-2 font-medium">天干十神</th>
+              <th className="px-3 py-2 font-medium">地支主氣</th>
+              <th className="px-3 py-2 font-medium">藏干十神</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pillars.map((p) => (
+              <tr key={p.label} className="border-t border-white/5 text-secondary">
+                <td className="whitespace-nowrap px-3 py-2 text-muted">{p.label}</td>
+                <td className="whitespace-nowrap px-3 py-2 font-semibold text-[#f0c040]">{p.stem}{p.branch}</td>
+                <td className="whitespace-nowrap px-3 py-2">{p.stemTenGod}</td>
+                <td className="whitespace-nowrap px-3 py-2">{p.branchMainQi.stem} / {p.branchMainQi.tenGod}</td>
+                <td className="min-w-56 px-3 py-2">
+                  {p.hiddenStemTenGods.map((h) => `${h.stem}：${h.tenGod}`).join('、')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
   const {
     chart, elementStats, strength, strengthLabel, favorableElements, relations, liunian,
@@ -37,7 +74,12 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
   void gender
 
   if (tab === '命盤') {
-    return <div className="p-2 sm:p-4"><ChartCircle chart={chart} /></div>
+    return (
+      <div className="space-y-4 p-2 sm:p-4">
+        <ChartCircle chart={chart} />
+        <TenGodDetailTable pillars={pillars} />
+      </div>
+    )
   }
 
   if (tab === '五行') {
@@ -75,14 +117,22 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
 
   if (tab === '十神') {
     return (
-      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-5">
-        {pillars.map((p) => (
-          <div key={p.label} className="card-solid p-4 transition hover:border-[#f0c040]/20">
-            <div className="text-xs text-muted">{p.label} · {p.stem}{p.branch}</div>
-            <div className="mt-2 text-xl font-bold text-[#f0c040]">{p.tenGod}</div>
-            <div className="mt-1 text-[10px] text-muted">納音 · {p.nayin}</div>
-          </div>
-        ))}
+      <div className="space-y-4 p-4 sm:p-5">
+        <TenGodDetailTable pillars={pillars} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {pillars.map((p) => (
+            <div key={p.label} className="card-solid p-4 transition hover:border-[#f0c040]/20">
+              <div className="text-xs text-muted">{p.label} · {p.stem}{p.branch}</div>
+              <div className="mt-2 text-xl font-bold text-[#f0c040]">{p.stemTenGod}</div>
+              <div className="mt-1 text-[10px] text-muted">
+                主氣 {p.branchMainQi.stem} · {p.branchMainQi.tenGod}｜納音 · {p.nayin}
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-secondary">
+                藏干：{p.hiddenStemTenGods.map((h) => `${h.stem}(${h.qi}) ${h.tenGod}`).join('、')}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

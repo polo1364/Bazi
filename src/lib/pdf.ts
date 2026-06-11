@@ -2,6 +2,7 @@ import { PDFDocument, type PDFFont, type PDFPage, rgb } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
 import type { AnalysisResult, BirthInput, Element } from '../types'
 import { pillarsToArray } from './bazi'
+import { getTengodGods } from './dataStore'
 
 const FONT_URL = '/fonts/NotoSansTC-VF.ttf'
 const PAGE_W = 595.28
@@ -39,7 +40,10 @@ function sanitizeFilename(name: string): string {
 
 function clean(text: unknown): string {
   return String(text ?? '')
-    .replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
+    .replace(/./gs, (char) => {
+      const code = char.charCodeAt(0)
+      return (code <= 31 || (code >= 127 && code <= 159)) ? '' : char
+    })
     .replace(/相会/g, '相會')
     .trim()
 }
@@ -256,8 +260,34 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
 
   layout.title('四柱與十神')
   pillars.forEach((p) => {
-    layout.card(`${p.label}：${p.stem}${p.branch}`, [`十神：${p.tenGod}`, `納音：${p.nayin || '—'}`, `藏干：${p.hiddenStems.join('、') || '—'}`], { accent: ELEMENT_COLOR[p.stemElement] })
+    layout.card(`${p.label}：${p.stem}${p.branch}`, [
+      `天干十神：${p.stemTenGod}`,
+      `地支主氣：${p.branchMainQi.stem} / ${p.branchMainQi.tenGod}`,
+      `藏干十神：${p.hiddenStemTenGods.map((h) => `${h.stem}(${h.qi}) ${h.tenGod}`).join('、')}`,
+      `納音：${p.nayin || '—'}`,
+    ], { accent: ELEMENT_COLOR[p.stemElement] })
   })
+  layout.table(
+    '十神詳表',
+    pillars.map((p) => [
+      p.label,
+      `${p.stem}${p.branch}`,
+      p.stemTenGod,
+      `${p.branchMainQi.stem} / ${p.branchMainQi.tenGod}`,
+      p.hiddenStemTenGods.map((h) => `${h.stem}：${h.tenGod}`).join('、'),
+    ]),
+    [45, 50, 65, 85, 280],
+  )
+  const tengods = getTengodGods()
+  const tengodOrder = ['比肩', '劫財', '食神', '傷官', '偏財', '正財', '七殺', '正官', '偏印', '正印']
+  layout.table(
+    '十神總表',
+    tengodOrder.map((name) => {
+      const item = tengods[name]
+      return [name, item?.basic || item?.nature || '', item?.persons || '', item?.traits || '']
+    }),
+    [45, 110, 180, 190],
+  )
 
   layout.title('五行強弱')
   ;(['木', '火', '土', '金', '水'] as Element[]).forEach((el) => {

@@ -1,10 +1,11 @@
-import type { BaziChart, Element, Pillar } from '../types'
+import type { BaziChart, Pillar } from '../types'
 import {
-  STEMS, BRANCHES, STEM_ELEMENTS, BRANCH_ELEMENTS, HIDDEN_STEMS,
-  getMonthStemIndex, getHourStemIndex, getTenGod,
+  STEMS, BRANCHES, STEM_ELEMENTS, BRANCH_ELEMENTS,
+  getMonthStemIndex, getHourStemIndex,
 } from './constants'
 import { getBaziYear, getBaziMonthBranch, getHourBranch } from './solarTerms'
 import { computeNayin } from './builtinData'
+import { getBranchTenGods, getTenGod } from './tenGods'
 
 function nayinText(gz: string): string {
   return computeNayin(gz)?.nayin ?? '大海水'
@@ -26,19 +27,24 @@ function parseGanZhi(gz: string): [number, number] | null {
   return [si, bi]
 }
 
-function buildPillar(label: string, stemIdx: number, branchIdx: number, dayMaster: string, dmElement: Element): Pillar {
+function buildPillar(label: string, stemIdx: number, branchIdx: number, dayMaster: string): Pillar {
   const stem = STEMS[stemIdx]
   const branch = BRANCHES[branchIdx]
   const gz = stem + branch
   const nayin = nayinText(gz)
+  const stemTenGod = getTenGod(dayMaster, stem, { isDayMaster: label === '日柱' })
+  const branchTenGods = getBranchTenGods(dayMaster, branch)
   return {
     label,
     stem,
     branch,
     stemElement: STEM_ELEMENTS[stem],
     branchElement: BRANCH_ELEMENTS[branch],
-    hiddenStems: HIDDEN_STEMS[branch] ?? [],
-    tenGod: stem === dayMaster ? '日主' : getTenGod(dmElement, STEMS.indexOf(dayMaster as typeof STEMS[number]) % 2 === 1, stem),
+    hiddenStems: branchTenGods.hiddenStems.map((item) => item.stem),
+    hiddenStemTenGods: branchTenGods.hiddenStems,
+    branchMainQi: branchTenGods.mainQi,
+    stemTenGod,
+    tenGod: stemTenGod,
     nayin,
   }
 }
@@ -59,10 +65,10 @@ export function calculateBazi(year: number, month: number, day: number, hour: nu
   const dmElement = STEM_ELEMENTS[dayMaster]
 
   return {
-    year: buildPillar('年柱', yearStemIdx, yearBranchIdx, dayMaster, dmElement),
-    month: buildPillar('月柱', monthStemIdx, monthBranchIdx, dayMaster, dmElement),
-    day: buildPillar('日柱', dayStemIdx, dayBranchIdx, dayMaster, dmElement),
-    hour: buildPillar('時柱', hourStemIdx, hourBranchIdx, dayMaster, dmElement),
+    year: buildPillar('年柱', yearStemIdx, yearBranchIdx, dayMaster),
+    month: buildPillar('月柱', monthStemIdx, monthBranchIdx, dayMaster),
+    day: buildPillar('日柱', dayStemIdx, dayBranchIdx, dayMaster),
+    hour: buildPillar('時柱', hourStemIdx, hourBranchIdx, dayMaster),
     dayMaster,
     dayMasterElement: dmElement,
   }
@@ -79,10 +85,10 @@ export function buildChartFromManual(pillars: { year: string; month: string; day
   const dmElement = STEM_ELEMENTS[dayMaster]
 
   return {
-    year: buildPillar('年柱', y[0], y[1], dayMaster, dmElement),
-    month: buildPillar('月柱', m[0], m[1], dayMaster, dmElement),
-    day: buildPillar('日柱', d[0], d[1], dayMaster, dmElement),
-    hour: buildPillar('時柱', h[0], h[1], dayMaster, dmElement),
+    year: buildPillar('年柱', y[0], y[1], dayMaster),
+    month: buildPillar('月柱', m[0], m[1], dayMaster),
+    day: buildPillar('日柱', d[0], d[1], dayMaster),
+    hour: buildPillar('時柱', h[0], h[1], dayMaster),
     dayMaster,
     dayMasterElement: dmElement,
   }

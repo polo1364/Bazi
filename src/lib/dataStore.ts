@@ -91,6 +91,9 @@ export interface TengodEntry {
   category: string
   nature: string
   desc: string
+  basic?: string
+  persons?: string
+  traits?: string
 }
 
 export interface PatternEntry {
@@ -351,6 +354,10 @@ export function getTengodDesc(name: string): TengodEntry | null {
 
 export function getTengodCategories(): Record<string, string> {
   return cache.tengods?.categories ?? {}
+}
+
+export function getTengodGods(): Record<string, TengodEntry> {
+  return cache.tengods?.gods ?? {}
 }
 
 export function getPattern(name: string): PatternEntry {

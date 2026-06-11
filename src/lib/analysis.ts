@@ -2,10 +2,11 @@ import type {
   AnalysisResult, AnalysisTopic, BaziChart, BirthInput, Element, ElementStats, Gender,
   DayunDetail, ElementAdvice, LiunianItem, LiuyueDetail, LiuyueItem, RelationItem, TrendItem,
 } from '../types'
-import { HIDDEN_STEMS, STEM_ELEMENTS, getTenGod } from './constants'
+import { STEM_ELEMENTS } from './constants'
 import { buildChartFromManual, calculateBazi, ganZhiFromMonth, ganZhiFromYear, pillarsToArray } from './bazi'
 import { calculateWuge } from './wuge'
 import { getNayin, computeShensha, getDaymasterProfile, getZodiacByBranch, computeChartRelations, getPattern } from './dataStore'
+import { getTenGod } from './tenGods'
 
 const ELEMENT_ORDER: Element[] = ['木', '火', '土', '金', '水']
 const GENERATES: Record<Element, Element> = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' }
@@ -104,10 +105,7 @@ const TOPIC_TEXT: Record<AnalysisTopic, (input: BirthInput, chart: BaziChart, st
 }
 
 function stemTenGod(chart: BaziChart, stem: string): string {
-  if (stem === chart.dayMaster) return '比肩'
-  const dmEl = chart.dayMasterElement
-  const yin = ['乙', '丁', '己', '辛', '癸'].includes(chart.dayMaster)
-  return getTenGod(dmEl, yin, stem)
+  return getTenGod(chart.dayMaster, stem)
 }
 
 function buildDetailText(input: BirthInput, chart: BaziChart, strength: number, favorable: Element[]): string {
@@ -328,12 +326,13 @@ export function analyzeBirth(input: BirthInput): AnalysisResult | null {
   const elementAdvice = getElementAdvice(favorableElements)
   const shensha = computeShensha(chart)
   const dmProfile = getDaymasterProfile(chart.dayMaster)
+  const monthHiddenText = chart.month.hiddenStemTenGods.map((h) => `${h.stem}${h.qi}${h.tenGod}`).join('、')
 
   const summary = [
     `日主：${chart.dayMaster}（${chart.dayMasterElement}）`,
     `強弱：${strengthLabel}（約 ${strength}%），喜用：${favorableElements.join('、')}`,
     `五行最旺：${sorted[0].e}；最弱：${sorted[sorted.length - 1].e}`,
-    `格局：${pattern}（${patternInfo.desc}），月令${chart.month.branch}藏${HIDDEN_STEMS[chart.month.branch]?.join('')}干`,
+    `格局：${pattern}（${patternInfo.desc}），月令${chart.month.branch}藏干：${monthHiddenText}`,
     ...pillarsToArray(chart).map((p) => `${p.label}納音：${p.nayin}`),
   ].join('\n')
 

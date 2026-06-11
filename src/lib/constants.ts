@@ -15,7 +15,7 @@ export const BRANCH_ELEMENTS: Record<string, Element> = {
 
 export const HIDDEN_STEMS: Record<string, string[]> = {
   子: ['癸'], 丑: ['己', '癸', '辛'], 寅: ['甲', '丙', '戊'], 卯: ['乙'],
-  辰: ['戊', '乙', '癸'], 巳: ['丙', '庚', '戊'], 午: ['丁', '己'],
+  辰: ['戊', '乙', '癸'], 巳: ['丙', '戊', '庚'], 午: ['丁', '己'],
   未: ['己', '丁', '乙'], 申: ['庚', '壬', '戊'], 酉: ['辛'],
   戌: ['戊', '辛', '丁'], 亥: ['壬', '甲'],
 }
@@ -104,23 +104,3 @@ export function getHourStemIndex(dayStemIndex: number, hourBranchIndex: number):
   return (start + hourBranchIndex) % 10
 }
 
-export function getTenGod(dayMasterElement: Element, dayMasterYin: boolean, targetStem: string): string {
-  const targetElement = STEM_ELEMENTS[targetStem]
-  const targetYin = STEMS.indexOf(targetStem as typeof STEMS[number]) % 2 === 1
-
-  const generates: Record<Element, Element> = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' }
-  const controls: Record<Element, Element> = { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' }
-
-  const sameElement = targetElement === dayMasterElement
-  const dayGeneratesTarget = generates[dayMasterElement] === targetElement
-  const targetGeneratesDay = generates[targetElement] === dayMasterElement
-  const dayControlsTarget = controls[dayMasterElement] === targetElement
-  const targetControlsDay = controls[targetElement] === dayMasterElement
-
-  if (sameElement) return dayMasterYin === targetYin ? '比肩' : '劫財'
-  if (dayGeneratesTarget) return dayMasterYin === targetYin ? '食神' : '傷官'
-  if (dayControlsTarget) return dayMasterYin === targetYin ? '偏財' : '正財'
-  if (targetControlsDay) return dayMasterYin === targetYin ? '七殺' : '正官'
-  if (targetGeneratesDay) return dayMasterYin === targetYin ? '偏印' : '正印'
-  return '比肩'
-}

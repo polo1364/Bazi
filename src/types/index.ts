@@ -1,6 +1,25 @@
 export type Element = '木' | '火' | '土' | '金' | '水'
 export type Gender = '男' | '女'
 export type InputMode = 'solar' | 'manual' | 'upload'
+export type Qi = '主氣' | '中氣' | '餘氣'
+export type TenGodName =
+  | '日主'
+  | '比肩'
+  | '劫財'
+  | '食神'
+  | '傷官'
+  | '偏財'
+  | '正財'
+  | '七殺'
+  | '正官'
+  | '偏印'
+  | '正印'
+
+export interface HiddenStemTenGod {
+  stem: string
+  qi: Qi
+  tenGod: TenGodName
+}
 
 export type AnalysisTopic =
   | '事業'
@@ -87,6 +106,9 @@ export interface Pillar {
   stemElement: Element
   branchElement: Element
   hiddenStems: string[]
+  hiddenStemTenGods: HiddenStemTenGod[]
+  branchMainQi: HiddenStemTenGod
+  stemTenGod: TenGodName
   tenGod: string
   nayin?: string
 }

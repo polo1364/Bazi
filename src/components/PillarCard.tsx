@@ -13,12 +13,14 @@ export default function PillarCard({ pillar }: Props) {
       <div className="pillar-divider" />
       <span className={`pillar-char ${ELEMENT_CLASS[pillar.branchElement]}`}>{pillar.branch}</span>
       <div className="pillar-meta">
-        <span className="pillar-hidden">藏干 {pillar.hiddenStems.join(' ')}</span>
+        <span className="pillar-hidden">
+          藏干 {pillar.hiddenStemTenGods.map((h) => `${h.stem}${h.tenGod}`).join(' ')}
+        </span>
         {pillar.nayin && (
           <span className="pillar-nayin">{pillar.nayin}</span>
         )}
       </div>
-      <span className="pillar-tengod">{pillar.tenGod}</span>
+      <span className="pillar-tengod">{pillar.stemTenGod}</span>
     </div>
   )
 }

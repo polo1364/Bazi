@@ -11,6 +11,7 @@
     "build": "vite build",
     "build:full": "npm run generate-data && npm run build",
     "generate-data": "node scripts/generate-all.mjs",
+    "test:tengods": "node scripts/verify-tengods.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "node server.mjs"
