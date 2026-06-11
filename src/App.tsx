@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { AiQuestion, AnalysisResult, BirthInput, ChartTab, Gender, SavedRecord } from './types'
 import { CHART_TABS } from './lib/constants'
@@ -44,6 +44,8 @@ export default function App() {
   const [aiAsking, setAiAsking] = useState(false)
   const [aiError, setAiError] = useState('')
   const [aiAskError, setAiAskError] = useState('')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [saveError, setSaveError] = useState('')
   const reportRef = useRef<HTMLDivElement>(null)
 
   const mainRef = useRef<HTMLElement>(null)
@@ -80,8 +82,15 @@ export default function App() {
   }, [chartImageUrl])
 
   const scrollToMessage = () => {
-    requestAnimationFrame(() => mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' }))
+    requestAnimationFrame(() => {
+      mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    })
   }
+
+  useLayoutEffect(() => {
+    if (!result) return
+    mainRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
+  }, [result])
 
   const enrichWithAi = useCallback(async (r: AnalysisResult, birthInput: BirthInput, options?: { force?: boolean }) => {
     if (!isAiConfigured()) return
@@ -190,16 +199,26 @@ export default function App() {
 
   const handleSave = async () => {
     if (!result) return
-    const record: SavedRecord = {
-      id: crypto.randomUUID(),
-      name: input.name || '未命名',
-      input,
-      result,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+    setSaveStatus('saving')
+    setSaveError('')
+    try {
+      const record: SavedRecord = {
+        id: crypto.randomUUID(),
+        name: input.name || '未命名',
+        input,
+        result,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }
+      await saveRecord(record)
+      setRecords(await getAllRecords())
+      setSaveStatus('saved')
+      window.setTimeout(() => setSaveStatus('idle'), 2500)
+    } catch (e) {
+      console.error(e)
+      setSaveStatus('error')
+      setSaveError(`儲存失敗：${e instanceof Error ? e.message : '未知錯誤'}`)
     }
-    await saveRecord(record)
-    setRecords(await getAllRecords())
   }
 
   const handleLoadRecord = async (record: SavedRecord) => {
@@ -335,6 +354,17 @@ export default function App() {
         onOpenSettings={() => setShowDataManager(true)}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         sidebarOpen={sidebarOpen}
+        historyControls={(
+          <HistoryPanel
+            records={records}
+            onLoad={handleLoadRecord}
+            onDelete={handleDeleteRecord}
+            onSave={handleSave}
+            canSave={!!result && dbReady}
+            saveStatus={saveStatus}
+            saveError={saveError}
+          />
+        )}
       />
 
       <div className="app-layout relative mx-auto flex w-full max-w-[1600px] flex-1 min-h-0">
@@ -372,14 +402,6 @@ export default function App() {
               <span>{error}</span>
             </div>
           )}
-
-          <HistoryPanel
-            records={records}
-            onLoad={handleLoadRecord}
-            onDelete={handleDeleteRecord}
-            onSave={handleSave}
-            canSave={!!result}
-          />
 
           {!result ? (
             <div className="welcome-stage animate-fade-in flex flex-1 items-center justify-center py-12 sm:py-16">

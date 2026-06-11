@@ -1119,6 +1119,15 @@ body {
   background: rgba(240, 192, 64, 0.03);
 }
 
+/* 歷史紀錄下拉選單 */
+.history-menu-backdrop {
+  background: transparent;
+}
+
+.history-dropdown {
+  border-color: rgba(240, 192, 64, 0.18);
+}
+
 /* 歷史項目 */
 .history-item {
   display: flex;

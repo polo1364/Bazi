@@ -1,10 +1,13 @@
+import type { ReactNode } from 'react'
+
 interface Props {
   onOpenSettings: () => void
   onToggleSidebar: () => void
   sidebarOpen: boolean
+  historyControls?: ReactNode
 }
 
-export default function Header({ onOpenSettings, onToggleSidebar, sidebarOpen }: Props) {
+export default function Header({ onOpenSettings, onToggleSidebar, sidebarOpen, historyControls }: Props) {
   return (
     <header className="app-header sticky top-0 z-40 border-b border-white/[0.06] bg-[#070d1a]/90 backdrop-blur-xl" style={{ height: 'var(--header-h)' }}>
       <div className="app-header-inner mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
@@ -39,18 +42,21 @@ export default function Header({ onOpenSettings, onToggleSidebar, sidebarOpen }:
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className="app-header-action flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs text-secondary transition hover:border-[#f0c040]/30 hover:text-[#f0c040] sm:px-4"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <ellipse cx="12" cy="5" rx="9" ry="3" />
-            <path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-            <path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6" />
-          </svg>
-          <span className="hidden sm:inline">資料庫</span>
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          {historyControls}
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="app-header-action flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs text-secondary transition hover:border-[#f0c040]/30 hover:text-[#f0c040] sm:px-4"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <ellipse cx="12" cy="5" rx="9" ry="3" />
+              <path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+              <path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6" />
+            </svg>
+            <span className="hidden sm:inline">資料庫</span>
+          </button>
+        </div>
       </div>
     </header>
   )
