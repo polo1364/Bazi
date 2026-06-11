@@ -129,7 +129,9 @@ function serveStatic(req, res) {
 }
 
 createServer(async (req, res) => {
-  if (req.method === 'POST' && req.url === '/api/deepseek') {
+  const pathname = new URL(req.url, 'http://localhost').pathname
+
+  if (req.method === 'POST' && pathname === '/api/deepseek') {
     return handleDeepseek(req, res)
   }
   if (req.method === 'GET' || req.method === 'HEAD') {
