@@ -4,7 +4,7 @@ import type { AiQuestion, AnalysisResult, BirthInput, ChartTab, Gender, SavedRec
 import { CHART_TABS } from './lib/constants'
 import { analyzeBirth, validateChartInput, validateInput, getChartFieldErrors, withAnalysisDefaults } from './lib/analysis'
 import { askAiQuestion, generateAiNarrative, type AiNarrativeResult } from './lib/aiNarrative'
-import { isAiConfigured } from './lib/aiSettings'
+import { isAiConfigured, loadAiSettings } from './lib/aiSettings'
 import { aiCacheKey } from './lib/aiCache'
 import { pillarsToArray } from './lib/bazi'
 import { exportPdf, waitForLayout } from './lib/pdf'
@@ -83,16 +83,17 @@ export default function App() {
     requestAnimationFrame(() => mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' }))
   }
 
-  const enrichWithAi = useCallback(async (r: AnalysisResult, birthInput: BirthInput) => {
+  const enrichWithAi = useCallback(async (r: AnalysisResult, birthInput: BirthInput, options?: { force?: boolean }) => {
     if (!isAiConfigured()) return
     setAiGenerating(true)
     setAiError('')
     try {
       const inputWithDefaults = withAnalysisDefaults(birthInput)
-      const cacheKey = await aiCacheKey('narrative', inputWithDefaults, r)
+      const settings = loadAiSettings()
+      const cacheKey = await aiCacheKey('narrative', inputWithDefaults, r, `tone:${settings.tone};model:${settings.model}`)
       const cached = await getAiCache<AiNarrativeResult>(cacheKey)
-      const narrative = cached ?? await generateAiNarrative(inputWithDefaults, r)
-      if (!cached) {
+      const narrative = !options?.force && cached ? cached : await generateAiNarrative(inputWithDefaults, r)
+      if (options?.force || !cached) {
         await saveAiCache({
           key: cacheKey,
           kind: 'narrative',
@@ -274,7 +275,8 @@ export default function App() {
     try {
       if (isAiConfigured()) {
         const inputWithDefaults = withAnalysisDefaults(input)
-        const cacheKey = await aiCacheKey('narrative', inputWithDefaults, r)
+        const settings = loadAiSettings()
+        const cacheKey = await aiCacheKey('narrative', inputWithDefaults, r, `tone:${settings.tone};model:${settings.model}`)
         const cached = await getAiCache<AiNarrativeResult>(cacheKey)
         const narrative = cached ?? await generateAiNarrative(inputWithDefaults, r)
         if (!cached) {
@@ -502,7 +504,7 @@ export default function App() {
                     {isAiConfigured() && result && !aiGenerating && (
                       <button
                         type="button"
-                        onClick={() => void enrichWithAi(result, input)}
+                        onClick={() => void enrichWithAi(result, input, { force: true })}
                         className="btn-secondary text-xs"
                       >
                         重新 AI 解讀
