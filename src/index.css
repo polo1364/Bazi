@@ -1161,6 +1161,81 @@ body {
 }
 
 /* PDF 匯出：完整內容 + 高對比 */
+.pdf-cover {
+  position: fixed;
+  left: -99999px;
+  top: 0;
+  width: 794px;
+  height: 1123px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(240, 192, 64, 0.12), transparent 260px),
+    #070d1a;
+  color: #ffffff;
+  font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", "Segoe UI", sans-serif;
+}
+
+.pdf-cover-card {
+  width: 650px;
+  height: 960px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 32px;
+  border: 1px solid rgba(240, 192, 64, 0.28);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 36%),
+    #1a2744;
+  text-align: center;
+  padding: 72px;
+}
+
+.pdf-cover-kicker {
+  margin-bottom: 28px;
+  color: #f0c040;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+.pdf-cover h1 {
+  margin: 0;
+  color: #fde68a;
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.pdf-cover h2 {
+  margin: 48px 0 0;
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.pdf-cover-line {
+  width: 120px;
+  height: 2px;
+  margin: 42px 0;
+  background: linear-gradient(90deg, transparent, #f0c040, transparent);
+}
+
+.pdf-cover p {
+  margin: 10px 0;
+  color: #e2e8f0;
+  font-size: 20px;
+  line-height: 1.7;
+}
+
+.pdf-cover-date {
+  margin-top: auto;
+  color: #cbd5e1;
+  font-size: 16px;
+}
+
 .pdf-export-mode {
   background: #070d1a !important;
   --card: #1a2744;
@@ -1220,6 +1295,19 @@ body {
   border-radius: var(--radius-lg);
   background: #1a2744;
   overflow: visible;
+}
+
+.pdf-export-mode > *,
+.pdf-export-mode .pdf-tab-section > *,
+.pdf-export-mode .ai-section-grid > *,
+.pdf-export-mode .trend-grid > * {
+  margin-bottom: 14px;
+}
+
+.pdf-export-mode .ai-section-grid,
+.pdf-export-mode .trend-grid {
+  display: grid !important;
+  gap: 14px !important;
 }
 
 .pdf-export-mode .pdf-tab-heading {

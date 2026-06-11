@@ -12,28 +12,37 @@ function sanitizeFilename(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '_').trim() || '命盤'
 }
 
-function drawCover(pdf: jsPDF, input: BirthInput, result: AnalysisResult) {
+function createCoverElement(input: BirthInput, result: AnalysisResult): HTMLElement {
+  const pillars = pillarsToArray(result.chart).map((p) => `${p.stem}${p.branch}`).join('  ')
+  const cover = document.createElement('section')
+  cover.className = 'pdf-cover'
+  cover.innerHTML = `
+    <div class="pdf-cover-card">
+      <div class="pdf-cover-kicker">BAZI & NAME REPORT</div>
+      <h1>八字 × 姓名合參報告</h1>
+      <h2>${input.name || '未命名命盤'}</h2>
+      <div class="pdf-cover-line"></div>
+      <p>四柱：${pillars}</p>
+      <p>日主：${result.chart.dayMaster}（身${result.strengthLabel}）</p>
+      <p>喜用：${result.favorableElements.join('、')}｜主題：${input.topic || '整體運勢'}</p>
+      <div class="pdf-cover-date">產生日期：${new Date().toLocaleDateString('zh-TW')}</div>
+    </div>
+  `
+  return cover
+}
+
+async function drawCover(pdf: jsPDF, input: BirthInput, result: AnalysisResult) {
   const pageW = pdf.internal.pageSize.getWidth()
   const pageH = pdf.internal.pageSize.getHeight()
-  const pillars = pillarsToArray(result.chart).map((p) => `${p.stem}${p.branch}`).join('  ')
-
-  pdf.setFillColor(7, 13, 26)
-  pdf.rect(0, 0, pageW, pageH, 'F')
-  pdf.setFillColor(26, 39, 68)
-  pdf.roundedRect(16, 24, pageW - 32, pageH - 48, 6, 6, 'F')
-  pdf.setTextColor(240, 192, 64)
-  pdf.setFontSize(24)
-  pdf.text('八字 × 姓名合參報告', pageW / 2, 56, { align: 'center' })
-  pdf.setTextColor(248, 250, 252)
-  pdf.setFontSize(18)
-  pdf.text(input.name || '未命名命盤', pageW / 2, 82, { align: 'center' })
-  pdf.setFontSize(12)
-  pdf.text(`四柱：${pillars}`, pageW / 2, 104, { align: 'center' })
-  pdf.text(`日主：${result.chart.dayMaster}（身${result.strengthLabel}）`, pageW / 2, 116, { align: 'center' })
-  pdf.text(`喜用：${result.favorableElements.join('、')}｜主題：${input.topic || '整體運勢'}`, pageW / 2, 128, { align: 'center' })
-  pdf.setTextColor(203, 213, 225)
-  pdf.setFontSize(10)
-  pdf.text(`產生日期：${new Date().toLocaleDateString('zh-TW')}`, pageW / 2, pageH - 46, { align: 'center' })
+  const cover = createCoverElement(input, result)
+  document.body.appendChild(cover)
+  try {
+    await waitForLayout()
+    const canvas = await snapshot(cover)
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, pageH)
+  } finally {
+    cover.remove()
+  }
 }
 
 export function waitForLayout(): Promise<void> {
@@ -85,6 +94,38 @@ async function snapshot(node: HTMLElement): Promise<HTMLCanvasElement> {
   })
 }
 
+function maxBlockHeightPx(contentW: number, contentH: number): number {
+  return Math.floor((contentH * PDF_LAYOUT_WIDTH) / contentW)
+}
+
+function collectPrintableBlocks(root: HTMLElement, maxHeightPx: number): HTMLElement[] {
+  const result: HTMLElement[] = []
+
+  const visit = (node: HTMLElement, depth = 0) => {
+    const children = Array.from(node.children).filter(
+      (child): child is HTMLElement => child instanceof HTMLElement && child.offsetHeight > 0,
+    )
+    const height = Math.max(node.scrollHeight, node.offsetHeight)
+    const canSplit = children.length > 1 && depth < 3
+    const shouldSplit = height > maxHeightPx * 0.92 && canSplit
+
+    if (!shouldSplit) {
+      result.push(node)
+      return
+    }
+
+    for (const child of children) {
+      visit(child, depth + 1)
+    }
+  }
+
+  Array.from(root.children)
+    .filter((child): child is HTMLElement => child instanceof HTMLElement && child.offsetHeight > 0)
+    .forEach((child) => visit(child))
+
+  return result
+}
+
 /** 將單一過高的截圖切成多頁（僅在區塊本身高於一頁時才使用） */
 function placeTall(
   pdf: jsPDF,
@@ -128,14 +169,12 @@ async function exportPdfInner(element: HTMLElement, input: BirthInput, result: A
   const contentW = pageW - margin * 2
   const contentH = pageH - margin * 2
 
-  const blocks = Array.from(element.children).filter(
-    (c): c is HTMLElement => c instanceof HTMLElement && c.offsetHeight > 0,
-  )
+  const blocks = collectPrintableBlocks(element, maxBlockHeightPx(contentW, contentH))
   if (blocks.length === 0) {
     throw new Error('找不到可匯出的報告內容')
   }
 
-  drawCover(pdf, input, result)
+  await drawCover(pdf, input, result)
   pdf.addPage()
   pdf.setFillColor(7, 13, 26)
   pdf.rect(0, 0, pageW, pageH, 'F')
