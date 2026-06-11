@@ -152,6 +152,16 @@ export default function DataManager({ onClose }: Props) {
             </div>
           )}
 
+          <div className="mt-3">
+            <label className="form-label">AI 語氣</label>
+            <select className="form-input" value={ai.tone} onChange={(e) => setAi({ ...ai, tone: e.target.value as AiSettings['tone'] })}>
+              <option value="plain">白話版：自然好懂</option>
+              <option value="professional">專業版：條理精準</option>
+              <option value="elder">長輩版：溫和提醒</option>
+              <option value="master">命理老師版：較有命理口吻</option>
+            </select>
+          </div>
+
           <button type="button" onClick={handleSaveAi} className="btn-gold mt-3 w-full text-xs">
             {aiSaved ? '已儲存' : '儲存 AI 設定'}
           </button>

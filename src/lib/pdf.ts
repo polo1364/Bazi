@@ -1,12 +1,37 @@
 import html2canvas from 'html2canvas-pro'
 import jsPDF from 'jspdf'
-import type { BirthInput } from '../types'
+import type { AnalysisResult, BirthInput } from '../types'
+import { pillarsToArray } from './bazi'
 
 const PDF_SCALE = 2
 const PAGE_BG = '#070d1a'
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '_').trim() || '命盤'
+}
+
+function drawCover(pdf: jsPDF, input: BirthInput, result: AnalysisResult) {
+  const pageW = pdf.internal.pageSize.getWidth()
+  const pageH = pdf.internal.pageSize.getHeight()
+  const pillars = pillarsToArray(result.chart).map((p) => `${p.stem}${p.branch}`).join('  ')
+
+  pdf.setFillColor(7, 13, 26)
+  pdf.rect(0, 0, pageW, pageH, 'F')
+  pdf.setFillColor(26, 39, 68)
+  pdf.roundedRect(16, 24, pageW - 32, pageH - 48, 6, 6, 'F')
+  pdf.setTextColor(240, 192, 64)
+  pdf.setFontSize(24)
+  pdf.text('八字 × 姓名合參報告', pageW / 2, 56, { align: 'center' })
+  pdf.setTextColor(248, 250, 252)
+  pdf.setFontSize(18)
+  pdf.text(input.name || '未命名命盤', pageW / 2, 82, { align: 'center' })
+  pdf.setFontSize(12)
+  pdf.text(`四柱：${pillars}`, pageW / 2, 104, { align: 'center' })
+  pdf.text(`日主：${result.chart.dayMaster}（身${result.strengthLabel}）`, pageW / 2, 116, { align: 'center' })
+  pdf.text(`喜用：${result.favorableElements.join('、')}｜主題：${input.topic || '整體運勢'}`, pageW / 2, 128, { align: 'center' })
+  pdf.setTextColor(203, 213, 225)
+  pdf.setFontSize(10)
+  pdf.text(`產生日期：${new Date().toLocaleDateString('zh-TW')}`, pageW / 2, pageH - 46, { align: 'center' })
 }
 
 export function waitForLayout(): Promise<void> {
@@ -58,7 +83,7 @@ function placeTall(
   }
 }
 
-export async function exportPdf(element: HTMLElement, input: BirthInput): Promise<void> {
+export async function exportPdf(element: HTMLElement, input: BirthInput, result: AnalysisResult): Promise<void> {
   if (!element.offsetWidth || !element.offsetHeight) {
     throw new Error('報告內容尚未渲染完成')
   }
@@ -78,7 +103,8 @@ export async function exportPdf(element: HTMLElement, input: BirthInput): Promis
     throw new Error('找不到可匯出的報告內容')
   }
 
-  // 填滿背景
+  drawCover(pdf, input, result)
+  pdf.addPage()
   pdf.setFillColor(7, 13, 26)
   pdf.rect(0, 0, pageW, pageH, 'F')
 

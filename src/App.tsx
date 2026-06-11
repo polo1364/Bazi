@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import type { AnalysisResult, BirthInput, ChartTab, Gender, SavedRecord } from './types'
+import type { AiQuestion, AnalysisResult, BirthInput, ChartTab, Gender, SavedRecord } from './types'
 import { CHART_TABS } from './lib/constants'
 import { analyzeBirth, validateChartInput, validateInput, getChartFieldErrors, withAnalysisDefaults } from './lib/analysis'
-import { generateAiNarrative } from './lib/aiNarrative'
+import { askAiQuestion, generateAiNarrative, type AiNarrativeResult } from './lib/aiNarrative'
 import { isAiConfigured } from './lib/aiSettings'
+import { aiCacheKey } from './lib/aiCache'
 import { pillarsToArray } from './lib/bazi'
 import { exportPdf, waitForLayout } from './lib/pdf'
 import { initDataStore } from './lib/dataStore'
 import { createEmptyInput } from './lib/defaults'
-import { getAllRecords, saveRecord, deleteRecord, saveChartImage, getChartImage } from './db'
+import { createShareUrl, readSharedInput } from './lib/share'
+import { getAiCache, getAllRecords, saveAiCache, saveRecord, deleteRecord, saveChartImage, getChartImage } from './db'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import PillarCard from './components/PillarCard'
@@ -21,6 +23,8 @@ import ShenshaPanel from './components/ShenshaPanel'
 import NameCharsPanel from './components/NameCharsPanel'
 import ResultHero from './components/ResultHero'
 import DataManager from './components/DataManager'
+import AiSectionsPanel from './components/AiSectionsPanel'
+import AiAskPanel from './components/AiAskPanel'
 
 export default function App() {
   const [input, setInput] = useState<BirthInput>(createEmptyInput)
@@ -35,13 +39,18 @@ export default function App() {
   const [chartImageUrl, setChartImageUrl] = useState<string>()
   const [pdfExporting, setPdfExporting] = useState(false)
   const [pdfMode, setPdfMode] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
   const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiAsking, setAiAsking] = useState(false)
   const [aiError, setAiError] = useState('')
+  const [aiAskError, setAiAskError] = useState('')
   const reportRef = useRef<HTMLDivElement>(null)
 
   const mainRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
+    const shared = readSharedInput()
+    if (shared) setInput(shared)
     initDataStore()
       .then(() => {
         setDbReady(true)
@@ -79,12 +88,25 @@ export default function App() {
     setAiGenerating(true)
     setAiError('')
     try {
-      const narrative = await generateAiNarrative(withAnalysisDefaults(birthInput), r)
+      const inputWithDefaults = withAnalysisDefaults(birthInput)
+      const cacheKey = await aiCacheKey('narrative', inputWithDefaults, r)
+      const cached = await getAiCache<AiNarrativeResult>(cacheKey)
+      const narrative = cached ?? await generateAiNarrative(inputWithDefaults, r)
+      if (!cached) {
+        await saveAiCache({
+          key: cacheKey,
+          kind: 'narrative',
+          value: narrative,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+      }
       setResult((prev) => prev ? {
         ...prev,
         summary: narrative.summary,
         detailText: narrative.detailText,
         topicAnalysis: narrative.topicAnalysis,
+        aiSections: narrative.sections,
       } : prev)
     } catch (e) {
       console.error(e)
@@ -93,6 +115,34 @@ export default function App() {
       setAiGenerating(false)
     }
   }, [])
+
+  const handleAskAi = useCallback(async (question: string) => {
+    if (!result || !isAiConfigured()) return
+    setAiAsking(true)
+    setAiAskError('')
+    try {
+      const inputWithDefaults = withAnalysisDefaults(input)
+      const cacheKey = await aiCacheKey('question', inputWithDefaults, result, question)
+      const cached = await getAiCache<string>(cacheKey)
+      const answer = cached ?? await askAiQuestion(inputWithDefaults, result, question)
+      if (!cached) {
+        await saveAiCache({
+          key: cacheKey,
+          kind: 'question',
+          value: answer,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+      }
+      const item: AiQuestion = { id: crypto.randomUUID(), question, answer, createdAt: Date.now() }
+      setResult((prev) => prev ? { ...prev, aiQuestions: [item, ...(prev.aiQuestions ?? [])] } : prev)
+    } catch (e) {
+      console.error(e)
+      setAiAskError(e instanceof Error ? e.message : 'AI 追問失敗，請稍後再試')
+    } finally {
+      setAiAsking(false)
+    }
+  }, [input, result])
 
   const executeAnalysis = useCallback((mode: 'chart' | 'full') => {
     setError('')
@@ -156,6 +206,7 @@ export default function App() {
     setResult(record.result)
     setError('')
     setSidebarOpen(false)
+    setAiAskError('')
     if (record.input.chartImageId) {
       const img = await getChartImage(record.input.chartImageId)
       if (img) {
@@ -179,10 +230,83 @@ export default function App() {
       mainRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
       await waitForLayout()
       await new Promise((r) => setTimeout(r, 350))
-      await exportPdf(reportRef.current, input)
+      await exportPdf(reportRef.current, input, result)
     } catch (e) {
       console.error(e)
       setError(`PDF 產生失敗：${e instanceof Error ? e.message : '請稍後再試'}`)
+      scrollToMessage()
+    } finally {
+      setPdfMode(false)
+      setPdfExporting(false)
+    }
+  }
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(createShareUrl(input))
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    } catch {
+      setError('分享連結複製失敗，請確認瀏覽器權限')
+      scrollToMessage()
+    }
+  }
+
+  const handleCompleteReport = async () => {
+    setError('')
+    setFieldErrors([])
+    const err = validateInput(input)
+    if (err) {
+      setFieldErrors(getChartFieldErrors(input))
+      setError(err)
+      scrollToMessage()
+      return
+    }
+    const r = analyzeBirth(input)
+    if (!r) {
+      setError('排盤失敗，請檢查輸入的日期或四柱是否正確')
+      scrollToMessage()
+      return
+    }
+
+    setPdfExporting(true)
+    let finalResult = r
+    try {
+      if (isAiConfigured()) {
+        const inputWithDefaults = withAnalysisDefaults(input)
+        const cacheKey = await aiCacheKey('narrative', inputWithDefaults, r)
+        const cached = await getAiCache<AiNarrativeResult>(cacheKey)
+        const narrative = cached ?? await generateAiNarrative(inputWithDefaults, r)
+        if (!cached) {
+          await saveAiCache({
+            key: cacheKey,
+            kind: 'narrative',
+            value: narrative,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          })
+        }
+        finalResult = {
+          ...r,
+          summary: narrative.summary,
+          detailText: narrative.detailText,
+          topicAnalysis: narrative.topicAnalysis,
+          aiSections: narrative.sections,
+        }
+      }
+      flushSync(() => {
+        setResult(finalResult)
+        setActiveTab('命盤')
+        setPdfMode(true)
+      })
+      await waitForLayout()
+      await new Promise((resolve) => setTimeout(resolve, 450))
+      if (!reportRef.current) throw new Error('報告內容尚未渲染完成')
+      await exportPdf(reportRef.current, input, finalResult)
+    } catch (e) {
+      console.error(e)
+      setResult(finalResult)
+      setError(`完整報告產生失敗：${e instanceof Error ? e.message : '請稍後再試'}`)
       scrollToMessage()
     } finally {
       setPdfMode(false)
@@ -357,6 +481,16 @@ export default function App() {
 
               {result.shensha && <ShenshaPanel items={result.shensha} />}
 
+              <AiSectionsPanel sections={result.aiSections} loading={aiGenerating} />
+
+              <AiAskPanel
+                questions={result.aiQuestions}
+                loading={aiAsking}
+                disabled={!isAiConfigured()}
+                error={aiAskError}
+                onAsk={handleAskAi}
+              />
+
               {/* 總結 */}
               <section className="card border-[#f0c040]/20 p-5 sm:p-6">
                 <div className="panel-header">
@@ -417,6 +551,14 @@ export default function App() {
             >
               {pdfExporting ? 'PDF 產生中…' : '產生圖文總結 PDF'}
             </button>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={handleCompleteReport} disabled={pdfExporting} className="btn-gold w-full py-3.5 disabled:cursor-not-allowed disabled:opacity-50">
+                一鍵產生完整報告
+              </button>
+              <button type="button" onClick={handleShare} className="btn-ghost w-full py-3.5">
+                {shareCopied ? '分享連結已複製' : '複製分享連結'}
+              </button>
+            </div>
             </>
           )}
         </main>

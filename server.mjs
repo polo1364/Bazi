@@ -3,6 +3,7 @@
  * 環境變數：PORT（Railway 自動注入）、DEEPSEEK_API_KEY
  */
 import { createServer } from 'node:http'
+import { createHash } from 'node:crypto'
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,6 +11,12 @@ import { fileURLToPath } from 'node:url'
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const distDir = join(__dirname, 'dist')
 const port = Number(process.env.PORT) || 3000
+const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS) || 10 * 60 * 1000
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX) || 20
+const aiCache = new Map()
+const rateBuckets = new Map()
+const usageLogs = []
+const errorLogs = []
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -52,7 +59,44 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload))
 }
 
+function clientIp(req) {
+  const forwarded = req.headers['x-forwarded-for']
+  if (typeof forwarded === 'string' && forwarded.trim()) return forwarded.split(',')[0].trim()
+  return req.socket.remoteAddress || 'unknown'
+}
+
+function hashPayload(value) {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex')
+}
+
+function remember(list, item, max = 200) {
+  list.unshift(item)
+  if (list.length > max) list.pop()
+}
+
+function checkRateLimit(req) {
+  const ip = clientIp(req)
+  const now = Date.now()
+  const bucket = rateBuckets.get(ip)
+  if (!bucket || now - bucket.start > RATE_LIMIT_WINDOW_MS) {
+    rateBuckets.set(ip, { start: now, count: 1 })
+    return { ok: true, ip }
+  }
+  bucket.count += 1
+  if (bucket.count > RATE_LIMIT_MAX) {
+    return { ok: false, ip, retryAfter: Math.ceil((RATE_LIMIT_WINDOW_MS - (now - bucket.start)) / 1000) }
+  }
+  return { ok: true, ip }
+}
+
 async function handleDeepseek(req, res) {
+  const rate = checkRateLimit(req)
+  if (!rate.ok) {
+    res.setHeader('Retry-After', String(rate.retryAfter))
+    remember(usageLogs, { at: new Date().toISOString(), endpoint: '/api/deepseek', ip: rate.ip, ok: false, status: 429 })
+    return sendJson(res, 429, { error: `請求過於頻繁，請約 ${rate.retryAfter} 秒後再試` })
+  }
+
   const apiKey = process.env.DEEPSEEK_API_KEY
   if (!apiKey) {
     return sendJson(res, 500, { error: '伺服器未設定 DEEPSEEK_API_KEY' })
@@ -68,6 +112,21 @@ async function handleDeepseek(req, res) {
   const messages = body.messages
   if (!Array.isArray(messages) || messages.length === 0) {
     return sendJson(res, 400, { error: '缺少 messages' })
+  }
+
+  const cacheKey = hashPayload({
+    model: body.model || 'deepseek-chat',
+    messages,
+    temperature: body.temperature ?? 0.75,
+    max_tokens: body.max_tokens ?? 2000,
+    response_format: body.response_format,
+  })
+  const cached = aiCache.get(cacheKey)
+  if (cached && Date.now() - cached.createdAt < 24 * 60 * 60 * 1000) {
+    remember(usageLogs, { at: new Date().toISOString(), endpoint: '/api/deepseek', ip: rate.ip, ok: true, status: 200, cached: true })
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'X-AI-Cache': 'HIT' })
+    res.end(cached.text)
+    return
   }
 
   try {
@@ -88,12 +147,25 @@ async function handleDeepseek(req, res) {
 
     const text = await upstream.text()
     if (!upstream.ok) {
+      remember(errorLogs, { at: new Date().toISOString(), endpoint: '/api/deepseek', status: upstream.status, error: text.slice(0, 300) })
+      remember(usageLogs, { at: new Date().toISOString(), endpoint: '/api/deepseek', ip: rate.ip, ok: false, status: upstream.status })
       return sendJson(res, upstream.status, { error: text.slice(0, 300) })
     }
 
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+    aiCache.set(cacheKey, { text, createdAt: Date.now() })
+    if (aiCache.size > 300) aiCache.delete(aiCache.keys().next().value)
+    let usage
+    try {
+      usage = JSON.parse(text)?.usage
+    } catch {
+      usage = undefined
+    }
+    remember(usageLogs, { at: new Date().toISOString(), endpoint: '/api/deepseek', ip: rate.ip, ok: true, status: 200, cached: false, usage })
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'X-AI-Cache': 'MISS' })
     res.end(text)
   } catch (e) {
+    remember(errorLogs, { at: new Date().toISOString(), endpoint: '/api/deepseek', status: 500, error: e instanceof Error ? e.message : 'Proxy error' })
+    remember(usageLogs, { at: new Date().toISOString(), endpoint: '/api/deepseek', ip: rate.ip, ok: false, status: 500 })
     sendJson(res, 500, { error: e instanceof Error ? e.message : 'Proxy error' })
   }
 }
@@ -133,6 +205,14 @@ createServer(async (req, res) => {
 
   if (req.method === 'POST' && pathname === '/api/deepseek') {
     return handleDeepseek(req, res)
+  }
+  if (req.method === 'GET' && pathname === '/api/health') {
+    return sendJson(res, 200, {
+      ok: true,
+      cacheSize: aiCache.size,
+      usage: usageLogs.slice(0, 25),
+      errors: errorLogs.slice(0, 25),
+    })
   }
   if (req.method === 'GET' || req.method === 'HEAD') {
     return serveStatic(req, res)

@@ -1,6 +1,5 @@
 import type { AnalysisResult, ChartTab, Gender } from '../types'
 import { ELEMENT_CLASS } from '../lib/constants'
-import { getDayun } from '../lib/analysis'
 import { pillarsToArray } from '../lib/bazi'
 import ChartCircle from './ChartCircle'
 
@@ -28,10 +27,14 @@ const ELEMENT_BAR: Record<string, string> = {
 }
 
 export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
-  const { chart, elementStats, strength, strengthLabel, favorableElements, relations, liunian, liuyue } = result
+  const {
+    chart, elementStats, strength, strengthLabel, favorableElements, relations, liunian,
+    liuyueDetails, dayunDetails, tenYearTrend, elementAdvice,
+  } = result
   const pillars = pillarsToArray(chart)
   const elements = ['木', '火', '土', '金', '水'] as const
   const maxStat = Math.max(...elements.map((e) => elementStats[e]))
+  void gender
 
   if (tab === '命盤') {
     return <div className="p-2 sm:p-4"><ChartCircle chart={chart} /></div>
@@ -50,6 +53,22 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
             <span className="w-10 text-right text-xs tabular-nums text-muted">{elementStats[el].toFixed(1)}</span>
           </div>
         ))}
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {elementAdvice.map((advice) => (
+            <div key={advice.element} className="card-solid p-4">
+              <h4 className={`text-sm font-bold ${ELEMENT_CLASS[advice.element]}`}>喜用 {advice.element} 補強</h4>
+              <p className="mt-2 text-xs leading-relaxed text-muted">
+                顏色：{advice.colors.join('、')}｜方位：{advice.directions.join('、')}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-secondary">
+                職業：{advice.careers.join('、')}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-secondary">
+                習慣：{advice.habits.join('、')}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -107,14 +126,17 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
   }
 
   if (tab === '大運') {
-    const dayun = getDayun(chart, gender)
     return (
-      <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-4 sm:p-5">
-        {dayun.map((d) => (
-          <div key={d.age} className="card-solid p-3 text-center transition hover:border-[#f0c040]/20 sm:p-4">
-            <div className="text-[10px] text-muted">{d.age}</div>
-            <div className="mt-1 text-lg font-bold text-[#f0c040] sm:text-xl">{d.pillar}</div>
-            <div className="mt-1 text-[10px] text-muted">{d.tenGod}</div>
+      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-4">
+        {dayunDetails.map((d) => (
+          <div key={d.age} className="card-solid p-4 transition hover:border-[#f0c040]/20">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[10px] text-muted">{d.age}</div>
+              <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] text-secondary">{d.score}</span>
+            </div>
+            <div className="mt-1 text-xl font-bold text-[#f0c040]">{d.pillar}</div>
+            <div className="mt-1 text-xs text-muted">{d.tenGod} · {d.element}</div>
+            <p className="mt-3 text-xs leading-relaxed text-secondary">{d.focus}</p>
           </div>
         ))}
       </div>
@@ -124,6 +146,19 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
   return (
     <div className="space-y-5 p-4 sm:p-5">
       <div>
+        <h4 className="mb-3 text-xs font-semibold tracking-wide text-[#f0c040]">十年趨勢</h4>
+        <div className="trend-grid mb-5">
+          {tenYearTrend.map((t) => (
+            <div key={t.year} className="trend-item">
+              <div className="text-[10px] text-muted">{t.year}</div>
+              <div className="mt-1 text-sm font-bold text-[#f0c040]">{t.label}</div>
+              <div className="mt-2 h-16 rounded-full bg-black/25 p-1">
+                <div className="mx-auto rounded-full bg-gradient-to-t from-[#d4a017] to-[#fde68a]" style={{ height: `${t.score}%`, width: '0.55rem' }} />
+              </div>
+              <div className="mt-1 text-[10px] text-muted">{t.score}</div>
+            </div>
+          ))}
+        </div>
         <h4 className="mb-3 text-xs font-semibold tracking-wide text-[#f0c040]">{analysisYear} 年 · 流年</h4>
         <div className="space-y-2">
           {liunian.map((l) => (
@@ -143,11 +178,12 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
       <div>
         <h4 className="mb-3 text-xs font-semibold tracking-wide text-[#f0c040]">{analysisYear} 年 · 流月</h4>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-          {liuyue.map((m) => (
+          {liuyueDetails.map((m) => (
             <div key={m.month} className="card-solid p-2.5 text-center sm:p-3">
               <div className="text-[10px] text-muted">{m.label}</div>
               <div className="mt-1 text-sm font-bold text-[#f0c040]">{m.pillar}</div>
-              <div className="mt-0.5 text-[10px] text-muted">{m.tenGod}</div>
+              <div className="mt-0.5 text-[10px] text-muted">{m.tenGod} · {m.score}</div>
+              <p className="mt-2 text-[10px] leading-relaxed text-secondary">{m.advice}</p>
             </div>
           ))}
         </div>

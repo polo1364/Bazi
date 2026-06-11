@@ -1,4 +1,4 @@
-import type { AnalysisResult, BirthInput } from '../types'
+import type { AiSections, AnalysisResult, BirthInput } from '../types'
 import { pillarsToArray } from './bazi'
 import { loadAiSettings, useAiProxy } from './aiSettings'
 
@@ -6,10 +6,21 @@ export interface AiNarrativeResult {
   summary: string
   detailText: string
   topicAnalysis: string
+  sections: AiSections
 }
 
-function buildChartContext(input: BirthInput, result: AnalysisResult): string {
-  const { chart, strength, strengthLabel, favorableElements, elementStats, pattern, relations, shensha, liunian, wuge } = result
+const TONE_TEXT = {
+  professional: '專業版：條理清楚、用詞精準，像正式命理報告。',
+  plain: '白話版：自然好懂，少用艱深術語，像朋友解釋。',
+  elder: '長輩版：語氣溫和穩重，多提醒修心、健康與家庭和諧。',
+  master: '命理老師版：可使用命理術語，但每段要落到具體建議。',
+} as const
+
+export function buildChartContext(input: BirthInput, result: AnalysisResult): string {
+  const {
+    chart, strength, strengthLabel, favorableElements, elementStats, pattern, relations, shensha,
+    liunian, liuyueDetails, dayunDetails, tenYearTrend, elementAdvice, wuge,
+  } = result
   const pillars = pillarsToArray(chart)
   const topic = input.topic || '整體運勢'
   const year = input.analysisYear || new Date().getFullYear()
@@ -29,6 +40,18 @@ function buildChartContext(input: BirthInput, result: AnalysisResult): string {
       ? `【神煞】${shensha.map((s) => `${s.name}（${s.type}）${s.desc}`).join('；')}`
       : '',
     `【${year}流年】${liunian.find((l) => l.year === year)?.pillar ?? ''} ${liunian.find((l) => l.year === year)?.tenGod ?? ''} ${liunian.find((l) => l.year === year)?.nayin ?? ''}`,
+    dayunDetails.length
+      ? `【大運】${dayunDetails.map((d) => `${d.age}${d.pillar}${d.tenGod}(${d.score})`).join('；')}`
+      : '',
+    tenYearTrend.length
+      ? `【十年趨勢】${tenYearTrend.map((t) => `${t.year}${t.pillar}${t.label}${t.score}`).join('、')}`
+      : '',
+    liuyueDetails.length
+      ? `【流月】${liuyueDetails.map((m) => `${m.label}${m.pillar}${m.tenGod}${m.score}`).join('、')}`
+      : '',
+    elementAdvice.length
+      ? `【喜用補強】${elementAdvice.map((a) => `${a.element}：色${a.colors.join('/')}；方${a.directions.join('/')}；職${a.careers.slice(0, 3).join('/')}`).join('；')}`
+      : '',
   ]
 
   if (wuge && wuge.總格 > 0) {
@@ -49,26 +72,36 @@ function parseAiJson(content: string): AiNarrativeResult {
   if (fenced) text = fenced[1].trim()
 
   const parsed = JSON.parse(text) as Partial<AiNarrativeResult>
-  if (!parsed.summary || !parsed.detailText || !parsed.topicAnalysis) {
+  if (!parsed.summary || !parsed.detailText || !parsed.topicAnalysis || !parsed.sections) {
     throw new Error('AI 回覆格式不完整')
   }
   return {
     summary: parsed.summary.trim(),
     detailText: parsed.detailText.trim(),
     topicAnalysis: parsed.topicAnalysis.trim(),
+    sections: {
+      career: parsed.sections.career?.trim() || '',
+      wealth: parsed.sections.wealth?.trim() || '',
+      relationship: parsed.sections.relationship?.trim() || '',
+      health: parsed.sections.health?.trim() || '',
+      yearly: parsed.sections.yearly?.trim() || '',
+      nameAdvice: parsed.sections.nameAdvice?.trim() || '',
+      remedies: parsed.sections.remedies?.trim() || '',
+    },
   }
 }
 
-async function callDeepSeek(
+export async function callDeepSeek(
   settings: ReturnType<typeof loadAiSettings>,
   messages: { role: string; content: string }[],
+  options?: { maxTokens?: number; json?: boolean },
 ): Promise<string> {
   const payload = {
     model: settings.model,
     messages,
     temperature: 0.75,
-    max_tokens: 2000,
-    response_format: { type: 'json_object' },
+    max_tokens: options?.maxTokens ?? 2600,
+    ...(options?.json === false ? {} : { response_format: { type: 'json_object' } }),
   }
 
   if (useAiProxy()) {
@@ -131,6 +164,7 @@ export async function generateAiNarrative(
       role: 'system',
       content: `你是溫暖、專業的八字與姓名合參顧問。請依提供的命盤資料撰寫解讀：
 - 語氣親切自然，像面對面交談，有溫度、具體、不空泛
+- 語氣風格：${TONE_TEXT[settings.tone]}
 - 只使用資料中已有的數據，不得捏造四柱、數值或神煞
 - 可給務實建議，但避免絕對化斷語（如「一定發財」）
 - 一律使用繁體中文`,
@@ -145,11 +179,50 @@ ${context}
 {
   "summary": "命盤總結：3-5 個短段落，用 \\n\\n 分隔。含日主性格、身強弱與喜用、格局與五行重點、姓名五格（若有）。",
   "detailText": "完整解讀：一段較長的連貫文字，整合四柱、生肖、神煞、流年與姓名，約 200-350 字。",
-  "topicAnalysis": "針對「${topic}」主題的專項分析，約 150-250 字，結合 ${input.analysisYear} 流年。"
+  "topicAnalysis": "針對「${topic}」主題的專項分析，約 150-250 字，結合 ${input.analysisYear} 流年。",
+  "sections": {
+    "career": "事業分析，約 120-180 字。",
+    "wealth": "財運分析，約 120-180 字。",
+    "relationship": "感情、婚姻或人際分析，約 120-180 字。",
+    "health": "健康與作息提醒，約 100-160 字。",
+    "yearly": "${input.analysisYear} 流年重點與節奏，約 120-180 字。",
+    "nameAdvice": "姓名五格、字義、喜用神的姓名建議；若無姓名，說明可如何補充。",
+    "remedies": "喜用神補強建議：顏色、方位、職業、生活習慣。"
+  }
 }`,
     },
   ]
 
   const content = await callDeepSeek(settings, messages)
   return parseAiJson(content)
+}
+
+export async function askAiQuestion(
+  input: BirthInput,
+  result: AnalysisResult,
+  question: string,
+): Promise<string> {
+  const settings = loadAiSettings()
+  const proxy = useAiProxy()
+
+  if (!proxy && !settings.enabled) {
+    throw new Error('尚未啟用 AI 解讀')
+  }
+  if (!proxy && !settings.apiKey.trim()) {
+    throw new Error('尚未設定 DeepSeek API Key')
+  }
+
+  const context = buildChartContext(input, result)
+  const content = await callDeepSeek(settings, [
+    {
+      role: 'system',
+      content: `你是八字與姓名合參顧問。請用繁體中文回答，語氣風格：${TONE_TEXT[settings.tone]}。不可捏造命盤資料，回答要具體、務實、避免絕對化。`,
+    },
+    {
+      role: 'user',
+      content: `命盤資料如下：\n${context}\n\n使用者追問：${question}\n\n請直接回答，約 180-320 字，可分 2-4 段。`,
+    },
+  ], { maxTokens: 1200, json: false })
+
+  return content.trim()
 }

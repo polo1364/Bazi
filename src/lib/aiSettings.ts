@@ -1,8 +1,11 @@
+import type { AiTone } from '../types'
+
 export interface AiSettings {
   enabled: boolean
   apiKey: string
   baseUrl: string
   model: string
+  tone: AiTone
 }
 
 const STORAGE_KEY = 'character-ai-settings'
@@ -12,6 +15,7 @@ const DEFAULTS: AiSettings = {
   apiKey: '',
   baseUrl: 'https://api.deepseek.com',
   model: 'deepseek-chat',
+  tone: 'plain',
 }
 
 /** Railway 部署時設 VITE_AI_PROXY=true，API Key 放 DEEPSEEK_API_KEY 環境變數 */

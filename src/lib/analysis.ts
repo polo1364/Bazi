@@ -1,6 +1,6 @@
 import type {
   AnalysisResult, AnalysisTopic, BaziChart, BirthInput, Element, ElementStats, Gender,
-  LiunianItem, LiuyueItem, RelationItem,
+  DayunDetail, ElementAdvice, LiunianItem, LiuyueDetail, LiuyueItem, RelationItem, TrendItem,
 } from '../types'
 import { HIDDEN_STEMS, STEM_ELEMENTS, getTenGod } from './constants'
 import { buildChartFromManual, calculateBazi, ganZhiFromMonth, ganZhiFromYear, pillarsToArray } from './bazi'
@@ -10,6 +10,39 @@ import { getNayin, computeShensha, getDaymasterProfile, getZodiacByBranch, compu
 const ELEMENT_ORDER: Element[] = ['木', '火', '土', '金', '水']
 const GENERATES: Record<Element, Element> = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' }
 const CONTROLS: Record<Element, Element> = { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' }
+const STEM_TO_ELEMENT = STEM_ELEMENTS
+const ELEMENT_REMEDIES: Record<Element, Omit<ElementAdvice, 'element'>> = {
+  木: {
+    colors: ['青綠', '淺綠', '木質色'],
+    directions: ['東方', '東南方'],
+    careers: ['教育', '設計', '文化出版', '園藝', '顧問規劃'],
+    habits: ['早睡早起', '多接觸植物', '規律伸展', '學習進修'],
+  },
+  火: {
+    colors: ['紅色', '紫色', '暖橘色'],
+    directions: ['南方'],
+    careers: ['品牌行銷', '影像媒體', '餐飲', '科技產品', '公開表達'],
+    habits: ['曬太陽', '維持運動', '培養表達', '避免熬夜上火'],
+  },
+  土: {
+    colors: ['黃色', '咖啡色', '米色'],
+    directions: ['中央', '東北方', '西南方'],
+    careers: ['不動產', '管理', '財務行政', '農食', '專案統籌'],
+    habits: ['固定作息', '整理環境', '穩定飲食', '建立長期計畫'],
+  },
+  金: {
+    colors: ['白色', '金色', '銀灰色'],
+    directions: ['西方', '西北方'],
+    careers: ['金融', '法務', '工程', '醫療器械', '制度稽核'],
+    habits: ['斷捨離', '訓練紀律', '呼吸保養', '重視邊界感'],
+  },
+  水: {
+    colors: ['黑色', '深藍色', '湖水色'],
+    directions: ['北方'],
+    careers: ['物流', '旅遊', '諮詢', '研究', '資訊流通'],
+    habits: ['補足睡眠', '親近水域', '保養腎泌尿', '保持彈性學習'],
+  },
+}
 
 const HOUR_MAP = [0, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
 
@@ -138,6 +171,26 @@ export function getDayun(chart: BaziChart, gender: '男' | '女'): { age: string
   return result
 }
 
+function scoreTenGod(god: string, favorable: Element[], element: Element): number {
+  let score = 55
+  if (favorable.includes(element)) score += 18
+  if (god.includes('財') || god.includes('官') || god.includes('印')) score += 8
+  if (god.includes('殺') || god.includes('傷') || god.includes('劫')) score -= 6
+  return Math.max(30, Math.min(92, score))
+}
+
+export function getDayunDetails(chart: BaziChart, gender: '男' | '女', favorable: Element[]): DayunDetail[] {
+  return getDayun(chart, gender).map((d) => {
+    const stem = d.pillar[0]
+    const element = STEM_TO_ELEMENT[stem]
+    const score = scoreTenGod(d.tenGod, favorable, element)
+    const focus = favorable.includes(element)
+      ? `${d.pillar}大運帶${element}氣，較能補命局所需，適合主動布局與累積成果。`
+      : `${d.pillar}大運以${d.tenGod}為主，宜控制節奏，先穩住基本盤再求突破。`
+    return { ...d, element, score, focus }
+  })
+}
+
 export function getLiunian(chart: BaziChart, startYear: number, count = 5): LiunianItem[] {
   const items: LiunianItem[] = []
   for (let y = startYear; y < startYear + count; y++) {
@@ -163,6 +216,32 @@ export function getLiuyue(chart: BaziChart, year: number): LiuyueItem[] {
       tenGod: stemTenGod(chart, stem),
     }
   })
+}
+
+export function getLiuyueDetails(chart: BaziChart, year: number, favorable: Element[]): LiuyueDetail[] {
+  return getLiuyue(chart, year).map((m) => {
+    const element = STEM_TO_ELEMENT[m.pillar[0]]
+    const score = scoreTenGod(m.tenGod, favorable, element)
+    const advice = score >= 72
+      ? '此月氣勢較順，可推進重要事項。'
+      : score >= 55
+        ? '此月平穩，適合整理資源與穩步執行。'
+        : '此月宜保守，合約、投資與情緒決策需多確認。'
+    return { ...m, score, advice }
+  })
+}
+
+export function getTenYearTrend(chart: BaziChart, startYear: number, favorable: Element[]): TrendItem[] {
+  return getLiunian(chart, startYear, 10).map((item) => {
+    const element = STEM_TO_ELEMENT[item.pillar[0]]
+    const score = scoreTenGod(item.tenGod, favorable, element)
+    const label = score >= 75 ? '旺' : score >= 60 ? '順' : score >= 45 ? '平' : '守'
+    return { year: item.year, pillar: item.pillar, score, label, summary: item.summary }
+  })
+}
+
+export function getElementAdvice(favorable: Element[]): ElementAdvice[] {
+  return favorable.map((element) => ({ element, ...ELEMENT_REMEDIES[element] }))
 }
 
 function resolveChart(input: BirthInput): BaziChart | null {
@@ -243,6 +322,10 @@ export function analyzeBirth(input: BirthInput): AnalysisResult | null {
   const relations = computeChartRelations(chart)
   const liunian = getLiunian(chart, analysisYear, 5)
   const liuyue = getLiuyue(chart, analysisYear)
+  const dayunDetails = getDayunDetails(chart, gender, favorableElements)
+  const liuyueDetails = getLiuyueDetails(chart, analysisYear, favorableElements)
+  const tenYearTrend = getTenYearTrend(chart, analysisYear, favorableElements)
+  const elementAdvice = getElementAdvice(favorableElements)
   const shensha = computeShensha(chart)
   const dmProfile = getDaymasterProfile(chart.dayMaster)
 
@@ -270,6 +353,10 @@ export function analyzeBirth(input: BirthInput): AnalysisResult | null {
     relations,
     liunian,
     liuyue,
+    dayunDetails,
+    liuyueDetails,
+    tenYearTrend,
+    elementAdvice,
     shensha,
     daymasterProfile: dmProfile ? `${dmProfile.name}：${dmProfile.traits}` : `${chart.dayMaster}日主`,
   }

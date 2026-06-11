@@ -24,6 +24,55 @@ export type ChartTab =
   | '大運'
   | '流年流月'
 
+export type AiTone = 'professional' | 'plain' | 'elder' | 'master'
+
+export interface AiSections {
+  career: string
+  wealth: string
+  relationship: string
+  health: string
+  yearly: string
+  nameAdvice: string
+  remedies: string
+}
+
+export interface AiQuestion {
+  id: string
+  question: string
+  answer: string
+  createdAt: number
+}
+
+export interface ElementAdvice {
+  element: Element
+  colors: string[]
+  directions: string[]
+  careers: string[]
+  habits: string[]
+}
+
+export interface DayunDetail {
+  age: string
+  pillar: string
+  tenGod: string
+  element: Element
+  focus: string
+  score: number
+}
+
+export interface LiuyueDetail extends LiuyueItem {
+  score: number
+  advice: string
+}
+
+export interface TrendItem {
+  year: number
+  pillar: string
+  score: number
+  label: string
+  summary: string
+}
+
 export interface ManualPillars {
   year: string
   month: string
@@ -134,10 +183,16 @@ export interface AnalysisResult {
   summary: string
   detailText: string
   topicAnalysis: string
+  aiSections?: AiSections
+  aiQuestions?: AiQuestion[]
   wuge?: WugeResult
   relations: RelationItem[]
   liunian: LiunianItem[]
   liuyue: LiuyueItem[]
+  dayunDetails: DayunDetail[]
+  liuyueDetails: LiuyueDetail[]
+  tenYearTrend: TrendItem[]
+  elementAdvice: ElementAdvice[]
   shensha: ShenshaItem[]
   daymasterProfile?: string
 }

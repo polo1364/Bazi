@@ -30,6 +30,14 @@ export interface AppSettings {
   lastInputMode?: InputMode
 }
 
+export interface AiCacheRecord {
+  key: string
+  kind: 'narrative' | 'question'
+  value: unknown
+  createdAt: number
+  updatedAt: number
+}
+
 export interface BaziDBSchema {
   records: {
     key: string
@@ -48,7 +56,12 @@ export interface BaziDBSchema {
     key: string
     value: AppSettings
   }
+  aiCache: {
+    key: string
+    value: AiCacheRecord
+    indexes: { 'by-date': number; 'by-kind': string }
+  }
 }
 
 export const DB_NAME = 'bazi-name-db'
-export const DB_VERSION = 1
+export const DB_VERSION = 2

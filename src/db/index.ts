@@ -1,6 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb'
 import type { SavedRecord } from '../types'
-import type { BaziDBSchema, ChartImage, CustomStroke, AppSettings } from './schema'
+import type { AiCacheRecord, BaziDBSchema, ChartImage, CustomStroke, AppSettings } from './schema'
 import { DB_NAME, DB_VERSION } from './schema'
 
 let dbPromise: Promise<IDBPDatabase<BaziDBSchema>> | null = null
@@ -22,6 +22,11 @@ export function getDB() {
         }
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'id' })
+        }
+        if (!db.objectStoreNames.contains('aiCache')) {
+          const store = db.createObjectStore('aiCache', { keyPath: 'key' })
+          store.createIndex('by-date', 'updatedAt')
+          store.createIndex('by-kind', 'kind')
         }
       },
     })
@@ -96,4 +101,16 @@ export async function clearAllData(): Promise<void> {
   await db.clear('records')
   await db.clear('customStrokes')
   await db.clear('chartImages')
+  await db.clear('aiCache')
+}
+
+export async function getAiCache<T = unknown>(key: string): Promise<T | undefined> {
+  const db = await getDB()
+  const record = await db.get('aiCache', key)
+  return record?.value as T | undefined
+}
+
+export async function saveAiCache(record: AiCacheRecord): Promise<void> {
+  const db = await getDB()
+  await db.put('aiCache', record)
 }

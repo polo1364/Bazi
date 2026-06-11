@@ -834,6 +834,62 @@ body {
   background: rgba(8, 14, 28, 0.55);
 }
 
+/* AI 分段解讀 */
+.ai-section-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.875rem;
+}
+
+.ai-section-card {
+  min-height: 11rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(240, 192, 64, 0.14);
+  background:
+    linear-gradient(145deg, rgba(240, 192, 64, 0.07), transparent 42%),
+    rgba(8, 14, 28, 0.52);
+  padding: 1rem;
+}
+
+.ai-answer-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(8, 14, 28, 0.58);
+  padding: 1rem;
+}
+
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.trend-item {
+  border-radius: 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(8, 14, 28, 0.5);
+  padding: 0.75rem 0.35rem;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .trend-grid {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .ai-section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .ai-section-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (min-width: 640px) {
   .data-modal {
     padding: 1.5rem;
