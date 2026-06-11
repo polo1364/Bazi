@@ -204,21 +204,21 @@ export default function App() {
   }
 
   return (
-    <div className="app-bg flex h-screen flex-col overflow-hidden">
+    <div className="app-shell app-bg flex h-screen flex-col overflow-hidden">
       <Header
         onOpenSettings={() => setShowDataManager(true)}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         sidebarOpen={sidebarOpen}
       />
 
-      <div className="relative mx-auto flex w-full max-w-[1600px] flex-1 min-h-0">
+      <div className="app-layout relative mx-auto flex w-full max-w-[1600px] flex-1 min-h-0">
         {/* 手機側欄遮罩 */}
         {sidebarOpen && (
           <div className="overlay fixed inset-0 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
         )}
 
         {/* 側欄 */}
-        <div className={`
+        <div className={`sidebar-panel ${sidebarOpen ? 'open' : ''}
           fixed bottom-0 left-0 z-30 w-[min(var(--sidebar-w),92vw)] transform overflow-hidden bg-[#070d1a] transition-transform duration-300 ease-out
           lg:static lg:z-auto lg:w-[var(--sidebar-w)] lg:shrink-0 lg:transform-none lg:bg-transparent lg:border-r lg:border-white/5
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -239,7 +239,7 @@ export default function App() {
         </div>
 
         {/* 主內容 */}
-        <main ref={mainRef} className="flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+        <main ref={mainRef} className="main-panel flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
           {error && (
             <div className="animate-fade-in mb-5 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
               <span className="mt-0.5 shrink-0">⚠</span>
