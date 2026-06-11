@@ -256,7 +256,7 @@ export default function App() {
           />
 
           {!result ? (
-            <div className="animate-fade-in flex flex-1 items-center justify-center py-12 sm:py-16">
+            <div className="welcome-stage animate-fade-in flex flex-1 items-center justify-center py-12 sm:py-16">
               <div className="empty-state">
                 <div className="empty-state-icon">命</div>
                 <h2 className="empty-state-title">請輸入資料後開始推演</h2>
