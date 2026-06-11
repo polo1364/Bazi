@@ -3,7 +3,7 @@ import fontkit from '@pdf-lib/fontkit'
 import type { AnalysisResult, BirthInput, Element } from '../types'
 import { pillarsToArray } from './bazi'
 
-const FONT_URL = '/fonts/msjh.ttc'
+const FONT_URL = '/fonts/NotoSansTC-VF.ttf'
 const PAGE_W = 595.28
 const PAGE_H = 841.89
 const MARGIN = 42
@@ -39,7 +39,8 @@ function sanitizeFilename(name: string): string {
 
 function clean(text: unknown): string {
   return String(text ?? '')
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
+    .replace(/相会/g, '相會')
     .trim()
 }
 
@@ -69,10 +70,8 @@ export function waitForLayout(): Promise<void> {
 async function loadChineseFont(pdfDoc: PDFDocument): Promise<PDFFont> {
   pdfDoc.registerFontkit(fontkit)
   const res = await fetch(FONT_URL)
-  if (!res.ok) throw new Error('中文字型載入失敗，請確認 public/fonts/msjh.ttc 已上傳')
-  // Windows 的 msjh.ttc 是 TrueType Collection；fontkit 可讀取，但不支援 createSubset。
-  // 因此這裡完整嵌入字型，避免 pdf-lib 子集化時拋出 createSubset 錯誤。
-  return pdfDoc.embedFont(await res.arrayBuffer(), { subset: false })
+  if (!res.ok) throw new Error('中文字型載入失敗，請確認 public/fonts/NotoSansTC-VF.ttf 已上傳')
+  return pdfDoc.embedFont(await res.arrayBuffer(), { subset: true })
 }
 
 function saveBytes(bytes: Uint8Array, filename: string) {
@@ -90,6 +89,7 @@ function saveBytes(bytes: Uint8Array, filename: string) {
 class PdfLayout {
   page: PDFPage
   y = PAGE_H - MARGIN
+  private contentAddedOnPage = false
   private readonly doc: PDFDocument
   private readonly font: PDFFont
 
@@ -110,6 +110,7 @@ class PdfLayout {
   private newPage() {
     this.page = this.doc.addPage([PAGE_W, PAGE_H])
     this.y = PAGE_H - MARGIN
+    this.contentAddedOnPage = false
     this.paintBackground()
   }
 
@@ -118,6 +119,7 @@ class PdfLayout {
   }
 
   text(text: string, x: number, y: number, size: number, color = COLORS.text) {
+    this.contentAddedOnPage = true
     this.page.drawText(clean(text), { x, y, size, font: this.font, color })
   }
 
@@ -176,19 +178,46 @@ class PdfLayout {
 
   table(title: string, rows: string[][], widths: number[]) {
     this.title(title)
-    const rowH = 24
     for (const row of rows) {
+      const size = 8.5
+      const wrappedCells = row.map((cell, i) => wrapText(cell, this.font, size, Math.max(24, widths[i] - 8)))
+      const rowLines = Math.max(...wrappedCells.map((cell) => cell.length), 1)
+      const rowH = Math.max(26, rowLines * 12 + 12)
       this.ensure(rowH + 2)
-      const y = this.y - rowH
-      this.page.drawRectangle({ x: MARGIN, y, width: PAGE_W - MARGIN * 2, height: rowH, color: COLORS.card2, borderColor: COLORS.border, borderWidth: 0.4 })
+      const safeY = this.y - rowH
+      this.page.drawRectangle({ x: MARGIN, y: safeY, width: PAGE_W - MARGIN * 2, height: rowH, color: COLORS.card2, borderColor: COLORS.border, borderWidth: 0.4 })
       let x = MARGIN + 8
-      row.forEach((cell, i) => {
-        this.text(cell, x, y + 8, 9.5, i === 0 ? COLORS.gold : COLORS.text)
+      wrappedCells.forEach((cellLines, i) => {
+        let lineY = safeY + rowH - 14
+        cellLines.forEach((line) => {
+          this.text(line, x, lineY, size, i === 0 ? COLORS.gold : COLORS.text)
+          lineY -= 12
+        })
         x += widths[i]
       })
       this.y -= rowH + 4
     }
     this.y -= 4
+  }
+
+  addPageNumbers() {
+    const pages = this.doc.getPages()
+    pages.forEach((page, index) => {
+      page.drawText(`${index + 1} / ${pages.length}`, {
+        x: PAGE_W - MARGIN - 34,
+        y: 22,
+        size: 8,
+        font: this.font,
+        color: COLORS.muted,
+      })
+    })
+  }
+
+  removeTrailingBlankPage() {
+    const pages = this.doc.getPages()
+    if (!this.contentAddedOnPage && pages.length > 1) {
+      this.doc.removePage(pages.length - 1)
+    }
   }
 }
 
@@ -227,7 +256,7 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
 
   layout.title('四柱與十神')
   pillars.forEach((p) => {
-    layout.card(`${p.label}柱：${p.stem}${p.branch}`, [`十神：${p.tenGod}`, `納音：${p.nayin || '—'}`, `藏干：${p.hiddenStems.join('、') || '—'}`], { accent: ELEMENT_COLOR[p.stemElement] })
+    layout.card(`${p.label}：${p.stem}${p.branch}`, [`十神：${p.tenGod}`, `納音：${p.nayin || '—'}`, `藏干：${p.hiddenStems.join('、') || '—'}`], { accent: ELEMENT_COLOR[p.stemElement] })
   })
 
   layout.title('五行強弱')
@@ -289,6 +318,8 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
     result.aiQuestions.forEach((q) => layout.card(`問：${q.question}`, [q.answer], { accent: COLORS.gold }))
   }
 
+  layout.removeTrailingBlankPage()
+  layout.addPageNumbers()
   const bytes = await pdfDoc.save()
   saveBytes(bytes, `${sanitizeFilename(input.name || '命盤')}_八字分析.pdf`)
 }

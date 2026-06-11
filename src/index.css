@@ -1326,7 +1326,7 @@ body {
   color: #f8fafc !important;
 }
 
-/* 匯出時：關閉所有動畫，避免 html2canvas 截到淡入中途的半透明畫面 */
+/* 匯出時：關閉所有動畫，避免 PDF 報告模式出現半透明畫面 */
 .pdf-export-mode,
 .pdf-export-mode * {
   animation: none !important;
