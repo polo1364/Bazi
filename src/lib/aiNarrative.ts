@@ -16,6 +16,48 @@ const TONE_TEXT = {
   master: '命理老師版：可使用命理術語，但每段要落到具體建議。',
 } as const
 
+function escapeControlCharsInJsonStrings(text: string): string {
+  let output = ''
+  let inString = false
+  let escaped = false
+
+  for (const char of text) {
+    if (escaped) {
+      output += char
+      escaped = false
+      continue
+    }
+
+    if (char === '\\') {
+      output += char
+      escaped = true
+      continue
+    }
+
+    if (char === '"') {
+      output += char
+      inString = !inString
+      continue
+    }
+
+    if (inString) {
+      if (char === '\n') {
+        output += '\\n'
+        continue
+      }
+      if (char === '\r') continue
+      if (char === '\t') {
+        output += '\\t'
+        continue
+      }
+    }
+
+    output += char
+  }
+
+  return output.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '')
+}
+
 export function buildChartContext(input: BirthInput, result: AnalysisResult): string {
   const {
     chart, strength, strengthLabel, favorableElements, elementStats, pattern, relations, shensha,
@@ -70,8 +112,34 @@ function parseAiJson(content: string): AiNarrativeResult {
   let text = content.trim()
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (fenced) text = fenced[1].trim()
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (jsonMatch) text = jsonMatch[0]
 
-  const parsed = JSON.parse(text) as Partial<AiNarrativeResult>
+  let parsed: Partial<AiNarrativeResult>
+  try {
+    parsed = JSON.parse(text) as Partial<AiNarrativeResult>
+  } catch {
+    const sanitized = escapeControlCharsInJsonStrings(text)
+    try {
+      parsed = JSON.parse(sanitized) as Partial<AiNarrativeResult>
+    } catch {
+      const fallback = content.trim()
+      return {
+        summary: fallback,
+        detailText: fallback,
+        topicAnalysis: fallback,
+        sections: {
+          career: fallback,
+          wealth: '',
+          relationship: '',
+          health: '',
+          yearly: '',
+          nameAdvice: '',
+          remedies: '',
+        },
+      }
+    }
+  }
   if (!parsed.summary || !parsed.detailText || !parsed.topicAnalysis || !parsed.sections) {
     throw new Error('AI 回覆格式不完整')
   }
