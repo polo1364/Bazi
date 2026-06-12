@@ -13,6 +13,10 @@
     "generate-data": "node scripts/generate-all.mjs",
     "test:tengods": "node scripts/verify-tengods.mjs",
     "test:bazi": "node src/tests/bazi.test.js",
+    "test:golden": "node src/tests/golden/xieJinwen.golden.test.js",
+    "test:report": "node src/tests/report/visibleTextCollector.test.js && node src/tests/report/personalizedExplanation.test.js && node src/tests/report/reportValidator.e2e.test.js",
+    "test:ai": "node src/tests/ai/aiNarrativeSafety.e2e.test.js",
+    "test:pdf": "node src/tests/pdf/pdfReportSafety.test.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "node server.mjs"

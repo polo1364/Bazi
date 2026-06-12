@@ -66,8 +66,23 @@ function buildPillar(label: string, stemIdx: number, branchIdx: number, dayMaste
   }
 }
 
-export function calculateBazi(year: number, month: number, day: number, hour: number): BaziChart {
-  const lunarResult = getBaziFromSolarDate({ year, month, day, hour })
+export interface SolarTimeOptions {
+  minute?: number
+  second?: number
+  timezone?: string
+  useTrueSolarTime?: boolean
+  useMeanSolarTime?: boolean
+  birthLongitude?: number
+}
+
+export function calculateBazi(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  options?: SolarTimeOptions,
+): BaziChart {
+  const lunarResult = getBaziFromSolarDate({ year, month, day, hour, ...(options ?? {}) })
   const chart = buildChartFromParts(lunarResult.pillars, {
     source: 'lunar-javascript',
     sourceNotes: lunarResult.notes,
@@ -75,6 +90,7 @@ export function calculateBazi(year: number, month: number, day: number, hour: nu
     lunarText: lunarResult.lunarText,
   })
   if (!chart) throw new Error('Invalid pillar format')
+  chart.solarTimeCorrection = lunarResult.solarTimeCorrection
   return chart
 }
 

@@ -6,6 +6,7 @@ import {
   getPatternBuiltin, numToElementBuiltin, normalizeWugeNumber,
   isCjkChar, DAYMASTER_BUILTIN, ZODIAC_BY_BRANCH, SIMPLIFIED_TO_TRADITIONAL,
 } from './builtinData'
+import { analyzeShensha } from './shensha/shenshaEngine'
 
 export interface WugeLuckEntry {
   number: number
@@ -376,9 +377,44 @@ export function computeChartRelations(chart: BaziChart): RelationItem[] {
   return computeRelationsByRules(chart)
 }
 
-export function computeShensha(chart: BaziChart): { name: string; type: string; desc: string; found: boolean }[] {
-  void chart
-  return []
+export function computeShensha(chart: BaziChart, context: { gender?: string | null } = {}) {
+  const result = analyzeShensha({
+    dayStem: chart.day.stem,
+    dayPillar: `${chart.day.stem}${chart.day.branch}`,
+    yearStem: chart.year.stem,
+    monthBranch: chart.month.branch,
+    gender: context.gender,
+    branches: {
+      year: chart.year.branch,
+      month: chart.month.branch,
+      day: chart.day.branch,
+      hour: chart.hour.branch,
+    },
+    stems: {
+      year: chart.year.stem,
+      month: chart.month.stem,
+      day: chart.day.stem,
+      hour: chart.hour.stem,
+    },
+    pillars: {
+      year: `${chart.year.stem}${chart.year.branch}`,
+      month: `${chart.month.stem}${chart.month.branch}`,
+      day: `${chart.day.stem}${chart.day.branch}`,
+      hour: `${chart.hour.stem}${chart.hour.branch}`,
+    },
+  })
+  return [
+    ...result.items,
+    ...result.unverified.map((item) => ({
+      ...item,
+      type: '尚未驗證',
+      desc: item.reason,
+      found: false,
+      basis: '尚未建立公式與測試',
+      targetBranches: [],
+      matchedBranches: [],
+    })),
+  ]
 }
 
 export function getDatabaseStats(): DatabaseStats {

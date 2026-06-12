@@ -1,6 +1,13 @@
 import { useRef } from 'react'
-import type { AnalysisTopic, BirthInput, Gender, InputMode, ManualPillars } from '../types'
+import type { AnalysisTopic, BirthInput, Gender, InputMode, ManualPillars, SolarTimeMode } from '../types'
 import { ANALYSIS_TOPICS, HOUR_LABELS, STEMS, BRANCHES } from '../lib/constants'
+import { TAIWAN_CITY_OPTIONS, getLongitudeByCity } from '../lib/locationLongitude'
+
+const SOLAR_TIME_MODES: { id: SolarTimeMode; label: string }[] = [
+  { id: 'none', label: '不修正' },
+  { id: 'meanSolarTime', label: '地方平太陽時' },
+  { id: 'trueSolarTime', label: '真太陽時' },
+]
 
 interface Props {
   input: BirthInput
@@ -136,6 +143,50 @@ export default function Sidebar({ input, onChange, onCalculate, onAnalyze, onIma
                   })} />
                 不確定時辰 → 以子時計算
               </label>
+
+              <div className="space-y-3 rounded-xl border border-white/5 bg-black/20 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-secondary">真太陽時校正</span>
+                  <span className="text-[10px] text-subtle">時區 +8 · 標準經線 120°E</span>
+                </div>
+                <div>
+                  <label className="form-label">出生地城市</label>
+                  <select className="form-input" value={input.birthCity ?? ''}
+                    onChange={(e) => {
+                      const city = e.target.value
+                      const lon = getLongitudeByCity(city)
+                      onChange({ birthCity: city, birthLongitude: lon ?? input.birthLongitude ?? '' })
+                    }}>
+                    <option value="">未選擇（自訂或預設）</option>
+                    {TAIWAN_CITY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">出生地經度（東經）</label>
+                  <input type="number" step="0.001" placeholder="例：121.565" className="form-input"
+                    value={input.birthLongitude === '' || input.birthLongitude == null ? '' : input.birthLongitude}
+                    onChange={(e) => onChange({ birthLongitude: e.target.value === '' ? '' : +e.target.value, birthCity: '' })} />
+                  {(input.birthLongitude === '' || input.birthLongitude == null) && (
+                    <p className="mt-1 text-[10px] leading-relaxed text-subtle">未輸入出生地經度，預設以東經 120 度計算。</p>
+                  )}
+                </div>
+                <div>
+                  <label className="form-label">時間模式</label>
+                  <div className="flex gap-1 rounded-lg bg-black/30 p-1">
+                    {SOLAR_TIME_MODES.map((m) => (
+                      <button key={m.id} type="button"
+                        onClick={() => onChange({ solarTimeMode: m.id })}
+                        className={`mode-tab flex-1 ${(input.solarTimeMode ?? 'none') === m.id ? 'active' : ''}`}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  {(input.solarTimeMode ?? 'none') === 'trueSolarTime' && (
+                    <p className="mt-1 text-[10px] leading-relaxed text-subtle">真太陽時使用近似均時差公式，可能與天文年鑑資料有數十秒至數分鐘差異。</p>
+                  )}
+                </div>
+              </div>
+
               <button type="button" onClick={handleChart} className="btn-gold w-full">自動排盤</button>
             </div>
           )}

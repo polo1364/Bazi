@@ -77,7 +77,25 @@ export interface DayunDetail {
   element: Element
   focus: string
   score: number
+  startAge?: string
+  endAge?: string
   verificationNote?: string
+}
+
+export interface LuckStartInfo {
+  direction: 'forward' | 'backward' | null
+  directionLabel: string
+  directionReason: string
+  verified: boolean
+  startAge?: string
+  startAgeYears?: number
+  startAgeMonths?: number
+  totalDiffDays?: number
+  usedTermName?: string
+  usedTermDateText?: string
+  method: string
+  note?: string
+  reason?: string
 }
 
 export interface LiuyueDetail extends LiuyueItem {
@@ -115,6 +133,28 @@ export interface Pillar {
   nayin?: string
 }
 
+export type SolarTimeMode = 'none' | 'meanSolarTime' | 'trueSolarTime'
+
+export interface PillarChangeInfo {
+  changed: boolean
+  changedFields: string[]
+  messages: string[]
+}
+
+export interface SolarTimeCorrection {
+  enabled: boolean
+  mode: SolarTimeMode
+  originalDateTime: string
+  correctedDateTime: string
+  standardMeridian: number
+  birthLongitude: number
+  longitudeCorrectionMinutes: number
+  equationOfTimeMinutes: number
+  totalCorrectionMinutes: number
+  note: string
+  pillarChange?: PillarChangeInfo
+}
+
 export interface BaziChart {
   year: Pillar
   month: Pillar
@@ -126,6 +166,7 @@ export interface BaziChart {
   sourceNotes?: string[]
   solarText?: string
   lunarText?: string
+  solarTimeCorrection?: SolarTimeCorrection
 }
 
 export interface ElementStats {
@@ -167,18 +208,71 @@ export interface WugeResult {
   details: Record<string, WugeDetail>
   unknownChars: string[]
   surnameLength: number
-  sancai: SancaiResult | null
+  sancai: SancaiResult | null | {
+    verified: boolean
+    combination: string
+    level: string
+    summary: string
+    source: string
+    tableCoverage: 'partial' | 'full'
+    heaven?: { number: number; element: string }
+    personality?: { number: number; element: string }
+    earth?: { number: number; element: string }
+  }
   charAnalysis: CharAnalysis[]
+  verified?: boolean
+  status?: '待校驗'
+  reason?: string
+  source?: string | null
+  chars?: Array<{
+    char: string
+    strokes: number | null
+    source: string | null
+    verified: boolean
+    status?: '待校驗'
+    reason?: string
+  }>
+  nameType?: '單姓雙名'
+  wugeFortune?: {
+    verified: boolean
+    source: string
+    note: string
+    items: Record<string, {
+      number: number
+      level?: string
+      title?: string
+      summary?: string
+      verified: boolean
+      source?: string
+      status?: '待校驗'
+      reason?: string
+    }>
+  }
+  wugeFortuneVerified?: boolean
+  note?: string
+  finalNote?: string
 }
 
 export interface ShenshaItem {
   name: string
-  status?: '成立' | '未驗證'
+  status?: '成立' | '不成立' | '不適用' | '尚未驗證' | '未驗證' | '別名'
   type: string
   desc: string
   found: boolean
   basis?: string
   trigger?: string[]
+  lookupKey?: string | Record<string, string>
+  targetStems?: string[]
+  targetBranches?: string[] | Record<string, string[]>
+  targetPillars?: string[]
+  matchedBranches?: Array<{ pillar: string; branch: string }>
+  matchedPillars?: Array<{ pillar: string; stem?: string; branch?: string; basis?: string }>
+  description?: string
+  source?: string
+  verified?: boolean
+  reason?: string
+  xun?: string
+  note?: string
 }
 
 export interface RelationItem {
@@ -205,11 +299,182 @@ export interface LiuyueItem {
   range?: string
 }
 
+export interface StrengthV2DeAspect {
+  status: string
+  reason: string
+  roots?: string[]
+  supporters?: string[]
+}
+
+export interface StrengthV2ForceItem {
+  source: string
+  stem: string
+  element: Element
+  weight: number
+  note: string
+}
+
+export interface StrengthV2Result {
+  label: string
+  confidence: string
+  score: number
+  scoreNote: string
+  dayStem: string
+  dayElement: Element
+  deLing: StrengthV2DeAspect
+  deDi: StrengthV2DeAspect
+  deShi: StrengthV2DeAspect
+  roots: {
+    roots: Array<{ pillar: string; branch?: string; hiddenStem: string; qi: string; strength: string; reason: string }>
+    summary: string
+  }
+  stemSupport: {
+    supportStems: Array<{ pillar: string; stem: string; type: string; tenGod: string }>
+    drainStems: Array<{ pillar: string; stem: string; type: string; tenGod: string }>
+    controlStems: Array<{ pillar: string; stem: string; type: string; tenGod: string }>
+    summary: string
+  }
+  forces: {
+    support: StrengthV2ForceItem[]
+    resource: StrengthV2ForceItem[]
+    control: StrengthV2ForceItem[]
+    output: StrengthV2ForceItem[]
+    wealth: StrengthV2ForceItem[]
+    summary: {
+      supportScore: number
+      resourceScore: number
+      controlScore: number
+      outputScore: number
+      wealthScore: number
+    }
+    weightNote: string
+    monthBranch: string
+  }
+  pattern: {
+    patternLabel: string
+    confidence: string
+    reasons: string[]
+    warning: string
+  }
+  usefulGods: {
+    useful: Element[]
+    priority: Array<{ element: Element; reason: string }>
+    avoid: Array<{ element: Element; reason: string }>
+    note: string
+  }
+  reasons: string[]
+  note: string
+}
+
+export interface FortuneV2Factor {
+  text: string
+}
+
+export interface FortuneV2Interaction {
+  type: string
+  name: string
+  branches: string[]
+  desc: string
+  with: string
+}
+
+export interface FortuneV2LuckCycleImpact {
+  pillar: string
+  stem: string
+  branch: string
+  stemTenGod: string
+  branchElement: Element
+  ageRange?: string
+  overall: string
+  helpfulFactors: string[]
+  pressureFactors: string[]
+  interactions: FortuneV2Interaction[]
+  confidence: string
+  note: string
+}
+
+export interface FortuneV2Score {
+  score: number
+  level: '偏有利' | '平穩' | '機會與壓力並存' | '壓力偏高'
+  scoreNote: string
+  breakdown: {
+    usefulSupportScore: number
+    avoidPressureScore: number
+    tenGodThemeScore: number
+    interactionRiskScore: number
+    luckCycleBufferScore: number
+  }
+}
+
+export interface FortuneV2YearImpact {
+  year: number
+  pillar: string
+  stem: string
+  branch: string
+  stemTenGod: string
+  branchElement: Element
+  theme: string
+  positiveFactors: string[]
+  riskFactors: string[]
+  luckCycleModifier: string[]
+  interactions: FortuneV2Interaction[]
+  conclusion: string
+  score: FortuneV2Score
+  confidence: string
+}
+
+export interface FortuneV2MonthImpact {
+  month: number
+  monthLabel: string
+  pillar: string
+  stem: string
+  branch: string
+  stemTenGod: string
+  branchElement: Element
+  theme: string
+  positiveFactors: string[]
+  riskFactors: string[]
+  interactions: FortuneV2Interaction[]
+  suggestion: string
+  score: FortuneV2Score
+  confidence: string
+}
+
+export interface FortuneV2YearSummary {
+  summary: string
+  keyMonths: {
+    supportive: string[]
+    pressure: string[]
+    neutral: string[]
+  }
+  advice: string[]
+  warnings: string[]
+}
+
+export interface FortuneV2LuckTransition {
+  year: number
+  hasTransition: boolean
+  verified: boolean
+  segments: Array<{ from: string; to: string; luckCycle: string; label: string }>
+  note: string
+}
+
+export interface FortuneV2Result {
+  luckCycleImpact: FortuneV2LuckCycleImpact | null
+  yearImpact: FortuneV2YearImpact
+  monthImpacts: FortuneV2MonthImpact[]
+  yearSummary: FortuneV2YearSummary
+  luckTransition?: FortuneV2LuckTransition
+  note: string
+}
+
 export interface AnalysisResult {
   chart: BaziChart
   elementStats: ElementStats
   strength: number
   strengthLabel: string
+  strengthV2?: StrengthV2Result
+  fortuneV2?: FortuneV2Result
   favorableElements: Element[]
   strongestElement: Element
   weakestElement: Element
@@ -238,10 +503,14 @@ export interface AnalysisResult {
   favorableNote?: string
   unfavorableElements?: Element[]
   dayunNote?: string
+  luckStart?: LuckStartInfo
+  solarTimeCorrection?: SolarTimeCorrection
   liunianNote?: string
   liuyueNote?: string
   nameValidationNote?: string
+  nameSummary?: string
   shenshaNote?: string
+  ruleVersions?: Record<string, string>
 }
 
 export interface BirthInput {
@@ -259,6 +528,10 @@ export interface BirthInput {
   query: string
   compoundSurname: string
   chartImageId?: string
+  birthCity?: string
+  birthLongitude?: number | ''
+  solarTimeMode?: SolarTimeMode
+  timezone?: string
 }
 
 export interface SavedRecord {

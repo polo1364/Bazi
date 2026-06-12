@@ -1,7 +1,10 @@
-import type { AiSections } from '../types'
+import type { AiSections, AnalysisResult } from '../types'
+import { buildUsefulGodsAdvice } from '../lib/narrative/usefulGodsAdvice'
+import { buildHealthAdvice } from '../lib/narrative/healthAdvice'
 
 interface Props {
   sections?: AiSections
+  result?: AnalysisResult
   loading?: boolean
 }
 
@@ -15,7 +18,7 @@ const ITEMS: { key: keyof AiSections; title: string; hint: string }[] = [
   { key: 'remedies', title: '補強建議', hint: '顏色、方位、職業、習慣' },
 ]
 
-export default function AiSectionsPanel({ sections, loading }: Props) {
+export default function AiSectionsPanel({ sections, result, loading }: Props) {
   if (!sections && !loading) return null
 
   return (
@@ -34,7 +37,11 @@ export default function AiSectionsPanel({ sections, loading }: Props) {
             <div className="text-xs text-muted">{item.hint}</div>
             <h4 className="mt-1 text-base font-bold text-[#fde68a]">{item.title}</h4>
             <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-secondary">
-              {sections?.[item.key] || '等待 AI 生成此段內容。'}
+              {sections?.[item.key] || (item.key === 'remedies' && result
+                ? buildUsefulGodsAdvice(result)
+                : item.key === 'health' && result
+                  ? buildHealthAdvice(result)
+                  : '等待 AI 生成此段內容。')}
             </p>
           </article>
         ))}

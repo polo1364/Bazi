@@ -6,7 +6,7 @@ import { analyzeBirth, validateChartInput, validateInput, getChartFieldErrors, w
 import { askAiQuestion, generateAiNarrative, type AiNarrativeResult } from './lib/aiNarrative'
 import { isAiConfigured, loadAiSettings } from './lib/aiSettings'
 import { aiCacheKey } from './lib/aiCache'
-import { getSafePdfResult, safeApplyAiNarrative } from './lib/aiNarrativeSafety'
+import { getSafePdfResult, safeApplyAiNarrative, validateAnalysisResult } from './lib/aiNarrativeSafety'
 import { pillarsToArray } from './lib/bazi'
 import { exportPdf, waitForLayout } from './lib/pdf'
 import { initDataStore } from './lib/dataStore'
@@ -21,11 +21,19 @@ import TabPanel from './components/TabPanel'
 import HistoryPanel from './components/HistoryPanel'
 import WugePanel from './components/WugePanel'
 import ShenshaPanel from './components/ShenshaPanel'
-import NameCharsPanel from './components/NameCharsPanel'
 import ResultHero from './components/ResultHero'
 import DataManager from './components/DataManager'
 import AiSectionsPanel from './components/AiSectionsPanel'
 import AiAskPanel from './components/AiAskPanel'
+
+function formatSafetyNotice(message: string, errors: string[]): string {
+  if (!errors.length) return message
+  return [
+    message,
+    '攔截原因：',
+    ...errors.map((error, index) => `${index + 1}. ${error}`),
+  ].join('\n')
+}
 
 export default function App() {
   const [input, setInput] = useState<BirthInput>(createEmptyInput)
@@ -40,6 +48,7 @@ export default function App() {
   const [chartImageUrl, setChartImageUrl] = useState<string>()
   const [pdfExporting, setPdfExporting] = useState(false)
   const [pdfMode, setPdfMode] = useState(false)
+  const [includePersonalizedExplanation, setIncludePersonalizedExplanation] = useState(true)
   const [shareCopied, setShareCopied] = useState(false)
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiAsking, setAiAsking] = useState(false)
@@ -110,14 +119,18 @@ export default function App() {
         await saveAiCache({
           key: cacheKey,
           kind: 'narrative',
-          value: narrative,
+          value: safe.sanitizedNarrative,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         })
       }
       if (!safe.usedAi) {
-        console.warn('AI 文案未通過 reportValidator，一律回退規則引擎文案：', safe.validatorErrors)
-        setSafetyNotice('AI 文案未通過一致性檢查，已使用規則引擎文案。')
+        console.warn('AI 文案清洗後仍未通過 reportValidator，已回退規則引擎文案：', safe.validatorErrors)
+        setSafetyNotice(formatSafetyNotice('AI 文案未通過一致性檢查，已使用規則引擎文案。', safe.validatorErrors))
+      } else if (safe.wasSanitized) {
+        console.info('AI 原文包含未校驗內容，已自動清洗並通過一致性檢查。', safe.originalValidatorErrors)
+        console.info('AI 文案清洗後已通過 reportValidator，使用清洗後版本。')
+        setSafetyNotice('AI 文案已自動校正為規則引擎一致版本。')
       } else {
         setSafetyNotice('')
       }
@@ -247,36 +260,6 @@ export default function App() {
     setRecords(await getAllRecords())
   }
 
-  const handleExportPdf = async () => {
-    if (!reportRef.current || !result) return
-    setPdfExporting(true)
-    setError('')
-    const fallbackResult = analyzeBirth(input) ?? result
-    const pdfSafety = getSafePdfResult({ result, fallbackResult })
-    const outputResult = pdfSafety.result
-    if (pdfSafety.usedFallback) {
-      console.warn('PDF 文案未通過 reportValidator，已回退規則引擎文案：', pdfSafety.validatorErrors)
-      setSafetyNotice('PDF 文案已回退為規則引擎版本。')
-    }
-    flushSync(() => {
-      setResult(outputResult)
-      setPdfMode(true)
-    })
-    try {
-      mainRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
-      await waitForLayout()
-      await new Promise((r) => setTimeout(r, 350))
-      await exportPdf(reportRef.current, input, outputResult)
-    } catch (e) {
-      console.error(e)
-      setError(`PDF 產生失敗：${e instanceof Error ? e.message : '請稍後再試'}`)
-      scrollToMessage()
-    } finally {
-      setPdfMode(false)
-      setPdfExporting(false)
-    }
-  }
-
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(createShareUrl(input))
@@ -320,21 +303,29 @@ export default function App() {
           await saveAiCache({
             key: cacheKey,
             kind: 'narrative',
-            value: narrative,
+            value: safe.sanitizedNarrative,
             createdAt: Date.now(),
             updatedAt: Date.now(),
           })
         }
         if (!safe.usedAi) {
-          console.warn('完整報告 AI 文案未通過 reportValidator，已回退規則引擎文案：', safe.validatorErrors)
-          setSafetyNotice('AI 文案未通過一致性檢查，已使用規則引擎文案。')
+          console.warn('AI 文案清洗後仍未通過 reportValidator，已回退規則引擎文案：', safe.validatorErrors)
+          setSafetyNotice(formatSafetyNotice('AI 文案未通過一致性檢查，已使用規則引擎文案。', safe.validatorErrors))
+        } else if (safe.wasSanitized) {
+          console.info('AI 原文包含未校驗內容，已自動清洗並通過一致性檢查。', safe.originalValidatorErrors)
+          console.info('AI 文案清洗後已通過 reportValidator，使用清洗後版本。')
+          setSafetyNotice('AI 文案已自動校正為規則引擎一致版本。')
         }
         finalResult = safe.result
       }
       const pdfSafety = getSafePdfResult({ result: finalResult, fallbackResult: r })
       if (pdfSafety.usedFallback) {
-        console.warn('完整報告 PDF 文案未通過 reportValidator，已回退規則引擎文案：', pdfSafety.validatorErrors)
-        setSafetyNotice('PDF 文案已回退為規則引擎版本。')
+        console.warn('PDF 文案未通過一致性檢查，已改用規則引擎文案。', pdfSafety.validatorErrors)
+        setSafetyNotice(formatSafetyNotice('PDF 文案已回退為規則引擎版本。', pdfSafety.validatorErrors))
+        finalResult = pdfSafety.result
+      } else if (pdfSafety.wasSanitized) {
+        console.info('PDF 文案清洗後已通過 reportValidator，使用清洗後版本。')
+        setSafetyNotice('PDF 文案已自動校正為規則引擎一致版本。')
         finalResult = pdfSafety.result
       }
       flushSync(() => {
@@ -345,7 +336,7 @@ export default function App() {
       await waitForLayout()
       await new Promise((resolve) => setTimeout(resolve, 450))
       if (!reportRef.current) throw new Error('報告內容尚未渲染完成')
-      await exportPdf(reportRef.current, input, finalResult)
+      await exportPdf(reportRef.current, input, finalResult, { includePersonalizedExplanation })
     } catch (e) {
       console.error(e)
       setResult(finalResult)
@@ -360,6 +351,16 @@ export default function App() {
   const pillars = result ? pillarsToArray(result.chart) : null
   const displayGender = (input.gender || '男') as Gender
   const displayYear = (input.analysisYear || new Date().getFullYear()) as number
+  const validationStatus = result ? [
+    ['核心命盤', result.chart ? '通過' : '待檢查'],
+    ['十神', pillars?.every((p) => p.stemTenGod && p.hiddenStemTenGods.length) ? '通過' : '待檢查'],
+    ['刑沖合害', result.relations?.length ? '通過' : '待檢查'],
+    ['流年流月', result.liunian?.length && result.liuyueDetails?.length ? '通過' : '待檢查'],
+    ['旺衰 v2', result.strengthV2 ? '通過' : '待檢查'],
+    ['AI 文案', safetyNotice.includes('回退') ? 'fallback' : safetyNotice.includes('校正') ? '已校正' : '通過'],
+    ['PDF', validateAnalysisResult(result).valid ? '匯出前通過' : '匯出前需校正'],
+    ['規則版本', result.ruleVersions ? `旺衰 ${result.ruleVersions.strengthV2Engine}｜歲運 ${result.ruleVersions.fortuneV2Engine}｜神煞 ${result.ruleVersions.shenshaEngine}` : '待檢查'],
+  ] : []
 
   if (!dbReady) {
     return (
@@ -427,8 +428,21 @@ export default function App() {
           {safetyNotice && (
             <div className="animate-fade-in mb-5 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
               <span className="mt-0.5 shrink-0">!</span>
-              <span>{safetyNotice}</span>
+              <span className="whitespace-pre-wrap">{safetyNotice}</span>
             </div>
+          )}
+          {result && (
+            <details className="mb-5 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-secondary">
+              <summary className="cursor-pointer font-semibold text-[#f0c040]">資料驗證狀態</summary>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {validationStatus.map(([label, status]) => (
+                  <div key={label} className="rounded-lg border border-white/5 bg-white/5 px-3 py-2">
+                    <div className="text-[10px] text-muted">{label}</div>
+                    <div className="mt-0.5 font-medium text-secondary">{status}</div>
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
 
           {!result ? (
@@ -522,19 +536,16 @@ export default function App() {
               )}
 
               {/* 五格 */}
-              {result.wuge && result.wuge.總格 > 0 && (
+              {result.wuge && (
                 <>
                   <WugePanel wuge={result.wuge} />
-                  {result.wuge.charAnalysis.length > 0 && (
-                    <NameCharsPanel charAnalysis={result.wuge.charAnalysis} sancai={result.wuge.sancai} />
-                  )}
                 </>
               )}
 
               {/* 神煞：永遠顯示，空陣列時元件自動顯示「尚未驗證」說明 */}
               <ShenshaPanel items={result.shensha ?? []} />
 
-              <AiSectionsPanel sections={result.aiSections} loading={aiGenerating} />
+              <AiSectionsPanel sections={result.aiSections} result={result} loading={aiGenerating} />
 
               <AiAskPanel
                 questions={result.aiQuestions}
@@ -596,17 +607,26 @@ export default function App() {
               </section>
             </div>
 
-            <button
-              type="button"
-              onClick={handleExportPdf}
-              disabled={pdfExporting}
-              className="btn-ghost mt-5 w-full py-3.5 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {pdfExporting ? 'PDF 產生中…' : '產生圖文總結 PDF'}
-            </button>
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-3">
+              <label className="flex items-start gap-3 text-sm text-secondary">
+                <input
+                  type="checkbox"
+                  className="mt-1 accent-[#f0c040]"
+                  checked={includePersonalizedExplanation}
+                  onChange={(event) => setIncludePersonalizedExplanation(event.target.checked)}
+                />
+                <span>
+                  <span className="font-semibold text-[#fde68a]">附加白話分析總結</span>
+                  <span className="mt-1 block text-xs leading-relaxed text-muted">
+                    在 PDF 最後加入依本次命盤結果產生的白話總結，協助讀懂專有名詞與實際含義。
+                  </span>
+                </span>
+              </label>
+            </div>
+
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={handleCompleteReport} disabled={pdfExporting} className="btn-gold w-full py-3.5 disabled:cursor-not-allowed disabled:opacity-50">
-                一鍵產生完整報告
+                {pdfExporting ? '完整報告產生中…' : '產生完整報告'}
               </button>
               <button type="button" onClick={handleShare} className="btn-ghost w-full py-3.5">
                 {shareCopied ? '分享連結已複製' : '複製分享連結'}

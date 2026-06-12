@@ -3,6 +3,18 @@ import fontkit from '@pdf-lib/fontkit'
 import type { AnalysisResult, BirthInput, Element } from '../types'
 import { pillarsToArray } from './bazi'
 import { getTengodGods } from './dataStore'
+import { safeRelationDesc } from './relationDisplay'
+import {
+  formatShenshaLookupKey,
+  formatShenshaMatchedBranches,
+  formatShenshaMatchedPillars,
+  formatShenshaTargetBranches,
+} from './shensha/shenshaDisplay'
+import { formatRuleVersionsForReport } from './report/ruleVersions'
+import { buildFortuneV2YearlySection, formatMonthImpactSummary } from './fortune/monthImpactDisplay'
+import { buildUsefulGodsAdvice } from './narrative/usefulGodsAdvice'
+import { buildHealthAdvice } from './narrative/healthAdvice'
+import { buildPersonalizedReportExplanation } from './report/personalizedExplanation'
 
 const FONT_URL = '/fonts/NotoSansTC-VF.ttf'
 const PAGE_W = 595.28
@@ -11,6 +23,7 @@ const MARGIN = 42
 const GAP = 10
 const FOOTER_RESERVE = 88
 const CONTENT_WIDTH = PAGE_W - MARGIN * 2
+export const PDF_ARTICLE_KEEP_WITH_NEXT_LINES = 3
 
 function scaleTableWidths(widths: number[]): number[] {
   const sum = widths.reduce((a, b) => a + b, 0)
@@ -143,6 +156,16 @@ class PdfLayout {
     this.y -= 44
   }
 
+  articleSection(heading: string, body: string) {
+    const bodySize = 10.2
+    const bodyLineH = bodySize * 1.55
+    const bodyLines = wrapText(body, this.font, bodySize, CONTENT_WIDTH)
+    const keepLines = Math.min(Math.max(bodyLines.length, 1), PDF_ARTICLE_KEEP_WITH_NEXT_LINES)
+    this.ensure(44 + keepLines * bodyLineH + 8)
+    this.title(heading)
+    this.paragraph(body, { size: bodySize })
+  }
+
   paragraph(text: string, options?: { size?: number; color?: ReturnType<typeof rgb>; indent?: number }) {
     const size = options?.size ?? 10.5
     const indent = options?.indent ?? 0
@@ -243,13 +266,15 @@ class PdfLayout {
 
 function drawCover(layout: PdfLayout, input: BirthInput, result: AnalysisResult) {
   const pillars = pillarsToArray(result.chart).map((p) => `${p.stem}${p.branch}`).join('  ')
+  const strengthLabel = result.strengthV2?.label || result.strengthLabel
+  const strengthSource = result.strengthV2 ? '旺衰 v2 系統初判' : '系統初判'
   layout.page.drawRectangle({ x: 55, y: 75, width: PAGE_W - 110, height: PAGE_H - 150, color: COLORS.card, borderColor: COLORS.gold, borderWidth: 0.8 })
   layout.text('BAZI & NAME REPORT', 183, 680, 15, COLORS.gold)
   layout.text('八字 × 姓名合參報告', 139, 630, 27, COLORS.gold2)
   layout.text(input.name || '未命名命盤', 230, 565, 21, COLORS.text)
   layout.page.drawLine({ start: { x: 215, y: 520 }, end: { x: 380, y: 520 }, thickness: 1, color: COLORS.gold })
   layout.text(`四柱：${pillars}`, 150, 470, 13, COLORS.muted)
-  layout.text(`日主：${result.chart.dayMaster}（身強弱：${result.strengthLabel}，系統初判）`, 155, 440, 13, COLORS.muted)
+  layout.text(`日主：${result.chart.dayMaster}（身強弱：${strengthLabel}（${strengthSource}））`, 155, 440, 13, COLORS.muted)
   layout.text(`喜用初判：${result.favorableElements.join('、')}｜主題：${input.topic || '整體運勢'}`, 145, 410, 13, COLORS.muted)
   layout.text(`四柱排盤來源：${result.chart.source === 'lunar-javascript' ? 'lunar-javascript' : '使用者輸入'}`, 180, 388, 10, COLORS.muted)
   layout.text('本報告為命理模型分析，提供結構化參考，不作絕對定論。', 130, 365, 10, COLORS.muted)
@@ -257,6 +282,15 @@ function drawCover(layout: PdfLayout, input: BirthInput, result: AnalysisResult)
 }
 
 function sectionText(result: AnalysisResult, key: keyof NonNullable<AnalysisResult['aiSections']>, fallback: string) {
+  if (key === 'yearly' && result.fortuneV2?.monthImpacts?.length) {
+    return buildFortuneV2YearlySection(result.fortuneV2.monthImpacts) || fallback
+  }
+  if (key === 'remedies') {
+    return result.aiSections?.remedies?.trim() || buildUsefulGodsAdvice(result)
+  }
+  if (key === 'health') {
+    return result.aiSections?.health?.trim() || buildHealthAdvice(result)
+  }
   return result.aiSections?.[key] || fallback
 }
 
@@ -267,10 +301,25 @@ const PDF_SOURCE_NOTES = [
   '八字流年以立春為界，非國曆 1 月 1 日',
   '流月以節氣切換，不等於農曆初一或國曆每月 1 日',
   '五行分數為系統自訂權重模型，僅供相對比較',
-  '身強弱為系統初判，需搭配完整旺衰模型驗證',
+  '身強弱採旺衰 v2 系統模型初判，需搭配大運流年與實際情境參考',
+  `規則版本：${formatRuleVersionsForReport()}`,
 ]
 
-export async function exportPdf(_element: HTMLElement, input: BirthInput, result: AnalysisResult): Promise<void> {
+export interface PdfExportOptions {
+  includePersonalizedExplanation?: boolean
+}
+
+function renderPersonalizedExplanation(layout: PdfLayout, result: AnalysisResult) {
+  const article = buildPersonalizedReportExplanation(result)
+  layout.ensure(PAGE_H)
+  layout.title(article.title)
+  layout.paragraph(article.subtitle, { color: COLORS.muted })
+  article.sections.forEach((section) => {
+    layout.articleSection(section.heading, section.body)
+  })
+}
+
+export async function exportPdf(_element: HTMLElement, input: BirthInput, result: AnalysisResult, options: PdfExportOptions = {}): Promise<void> {
   const pdfDoc = await PDFDocument.create()
   const font = await loadChineseFont(pdfDoc)
   const layout = new PdfLayout(pdfDoc, font)
@@ -279,6 +328,8 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
   drawCover(layout, input, result)
 
   const pillars = pillarsToArray(result.chart)
+  const formalStrengthLabel = result.strengthV2?.label || result.strengthLabel
+  const formalStrengthSource = result.strengthV2 ? '旺衰 v2 系統初判' : '系統初判'
 
   // ── 第 2 頁：命盤總覽與十神 ──────────────────────────────────────
   layout.ensure(PAGE_H)
@@ -287,9 +338,33 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
     `四柱排盤來源：${result.chart.source === 'lunar-javascript' ? 'lunar-javascript' : '使用者輸入'}`,
     '十神、藏干、刑沖合害、五行強弱與文案由本系統規則引擎計算',
     `四柱：${pillars.map((p) => `${p.label}${p.stem}${p.branch}`).join('　')}`,
-    `日主：${result.chart.dayMaster}${result.chart.dayMasterElement}｜身強弱：${result.strengthLabel}（系統初判）`,
+    `日主：${result.chart.dayMaster}${result.chart.dayMasterElement}｜身強弱：${formalStrengthLabel}（${formalStrengthSource}）`,
     `喜用初判：${result.favorableElements.join('、')}${result.unfavorableElements?.length ? `｜需留意：${result.unfavorableElements.join('、')}` : ''}`,
   ], { accent: COLORS.gold })
+
+  const stc = result.solarTimeCorrection
+  if (stc) {
+    const modeLabel = stc.mode === 'trueSolarTime' ? '真太陽時' : stc.mode === 'meanSolarTime' ? '地方平太陽時' : '標準時間'
+    const fmt = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(2)} 分鐘`
+    const lines = [
+      `模式：${modeLabel}`,
+      `出生地經度：${stc.birthLongitude}°E｜標準經線：${stc.standardMeridian}°E`,
+      `原始出生時間：${stc.originalDateTime}`,
+      `修正後時間：${stc.correctedDateTime}`,
+    ]
+    if (stc.enabled) {
+      lines.push(`經度修正：${fmt(stc.longitudeCorrectionMinutes)}`)
+      if (stc.mode === 'trueSolarTime') lines.push(`均時差：${fmt(stc.equationOfTimeMinutes)}`)
+      lines.push(`總修正：${fmt(stc.totalCorrectionMinutes)}`)
+    }
+    if (stc.pillarChange?.messages?.length) lines.push(...stc.pillarChange.messages)
+    lines.push(stc.enabled
+      ? (stc.mode === 'trueSolarTime'
+          ? '本報告使用真太陽時排盤。均時差為近似公式估算，結果僅供參考。'
+          : '本報告使用地方平太陽時排盤。')
+      : '本報告使用標準時間排盤，未啟用真太陽時修正。')
+    layout.card('時間校正', lines, { accent: COLORS.gold })
+  }
 
   pillars.forEach((p) => {
     layout.card(`${p.label}：${p.stem}${p.branch}`, [
@@ -323,8 +398,8 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
 
   // ── 第 3 頁：五行與身強弱 ─────────────────────────────────────────
   layout.ensure(PAGE_H)
-  layout.title('五行與身強弱')
-  layout.paragraph('五行分數為系統自訂權重模型，僅供相對比較，不代表傳統命理唯一標準。', { color: COLORS.muted })
+  layout.title('五行簡化模型參考')
+  layout.paragraph('五行分數為系統自訂權重模型，僅供相對比較，不代表傳統命理唯一標準。正式身強弱以第 5 頁旺衰 v2 結果為準。', { color: COLORS.muted })
   if (result.elementModelNote) layout.paragraph(result.elementModelNote, { color: COLORS.muted })
   ;(['木', '火', '土', '金', '水'] as Element[]).forEach((el) => {
     const value = result.elementStats[el]
@@ -343,15 +418,47 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
     `五行最弱：${result.weakestElement}`,
     result.elementReason || '',
   ])
-  layout.card('日主旺弱判斷依據', [
-    `身強弱：${result.strengthLabel}`,
-    `系統參考分數：${result.strength}%`,
+  layout.card('五行簡化模型參考', [
+    `簡化模型參考：${result.strengthLabel}`,
+    `簡化模型分數：${result.strength}%`,
+    '正式身強弱以第 5 頁旺衰 v2 結果為準。',
     result.strengthScoreNote || '此分數為系統模型估算，不是命理絕對值',
     `可信度：${result.strengthConfidence || '中'}`,
     ...(result.strengthBasis ?? []),
     `喜用初判：${result.favorableElements.join('、')}${result.unfavorableElements?.length ? `；需留意：${result.unfavorableElements.join('、')}` : ''}`,
     result.favorableNote || '',
   ], { accent: COLORS.gold })
+  if (result.strengthV2) {
+    const v2 = result.strengthV2
+    const f = v2.forces.summary
+    layout.card('日主旺衰 v2（系統模型）', [
+      `身強弱：${v2.label}｜可信度：${v2.confidence}｜系統分數：${v2.score}`,
+      v2.scoreNote,
+      `得令：${v2.deLing.status}　${v2.deLing.reason}`,
+      `得地：${v2.deDi.status}　${v2.deDi.reason}`,
+      `得勢：${v2.deShi.status}　${v2.deShi.reason}`,
+    ], { accent: COLORS.gold })
+    layout.card('通根與生扶剋洩耗', [
+      ...v2.roots.roots.map((r) => `${r.strength}：${r.reason}`),
+      v2.stemSupport.summary || '天干幫扶與洩耗不明顯',
+      `力量分數 → 幫身 ${f.supportScore}｜生身 ${f.resourceScore}｜剋身 ${f.controlScore}｜洩身 ${f.outputScore}｜耗身 ${f.wealthScore}`,
+      v2.forces.weightNote,
+    ])
+    layout.card('喜用神初判 v2', [
+      `喜用：${v2.usefulGods.useful.join('、')}`,
+      ...v2.usefulGods.priority.map((p) => `用神 ${p.element}：${p.reason}`),
+      `忌神：${v2.usefulGods.avoid.map((a) => a.element).join('、')}`,
+      ...v2.usefulGods.avoid.map((a) => `忌 ${a.element}：${a.reason}`),
+      v2.usefulGods.note,
+    ])
+    layout.card('格局傾向（v2）', [
+      `${v2.pattern.patternLabel}（可信度 ${v2.pattern.confidence}）`,
+      ...v2.pattern.reasons,
+      v2.pattern.warning,
+    ], { accent: COLORS.gold })
+    layout.card('旺衰判斷依據', v2.reasons)
+    layout.paragraph(v2.note, { color: COLORS.muted })
+  }
   layout.card('喜用神補強', result.elementAdvice.map((a) => `${a.element}：顏色 ${a.colors.join('、')}；方位 ${a.directions.join('、')}；職業 ${a.careers.join('、')}；習慣 ${a.habits.join('、')}`))
 
   // ── 第 4 頁：格局與刑沖合害 ──────────────────────────────────────
@@ -359,7 +466,7 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
   layout.title('格局與刑沖合害')
   layout.card('格局傾向', [`格局傾向：${result.pattern}`, result.patternNote || ''], { accent: COLORS.gold })
   if (result.relations.length) {
-    layout.table('刑沖合害成立項（規則引擎結果）', result.relations.map((r) => [r.type, r.label, r.branches?.join('、') || '', r.desc]), [45, 120, 80, 280])
+    layout.table('刑沖合害成立項（規則引擎結果）', result.relations.map((r) => [r.type, r.label, r.branches?.join('、') || '', safeRelationDesc(r.desc)]), [45, 120, 80, 280])
   } else {
     layout.paragraph('本命盤未見明顯刑沖合害。', { color: COLORS.muted })
   }
@@ -374,17 +481,95 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
   layout.ensure(PAGE_H)
   layout.title('大運')
   layout.paragraph(result.dayunNote || '', { color: COLORS.muted })
-  layout.table('大運詳細分析', result.dayunDetails.map((d) => [d.age, d.pillar, d.tenGod, `參考 ${d.score}`, d.focus]), [95, 55, 55, 55, 265])
+  const luck = result.luckStart
+  if (luck) {
+    const luckLines = [
+      `大運順逆：${luck.directionLabel}`,
+      `判斷依據：${luck.directionReason}`,
+    ]
+    if (luck.verified) {
+      luckLines.push(`起運歲數：${luck.startAge}（系統精算）`)
+      luckLines.push(`使用節氣：${luck.usedTermName}（${luck.usedTermDateText}）`)
+      luckLines.push(`出生與節氣相差約 ${luck.totalDiffDays} 天`)
+      luckLines.push(`起運算法：${luck.method}，不同流派可能略有差異`)
+    } else {
+      luckLines.push(luck.note || '起運歲數尚未驗證')
+    }
+    layout.card('大運起運', luckLines, { accent: COLORS.gold })
+  }
+  const dayunRows = result.dayunDetails.map((d) => [
+    d.startAge && d.endAge ? `${d.startAge}~${d.endAge}` : d.age,
+    d.pillar,
+    d.tenGod,
+    `參考 ${d.score}`,
+    d.focus,
+  ])
+  layout.table('大運詳細分析', dayunRows, [110, 50, 50, 50, 240])
 
   // ── 第 6 頁：流年與流月 ───────────────────────────────────────────
   layout.ensure(PAGE_H)
   layout.title('流年與流月')
   layout.paragraph('八字流年以立春為界，非國曆 1 月 1 日。', { color: COLORS.muted })
+
+  if (result.fortuneV2) {
+    const fv = result.fortuneV2
+    const y = fv.yearImpact
+    const lc = fv.luckCycleImpact
+    const hasLuckTransition = fv.luckTransition?.hasTransition && fv.luckTransition.segments.length >= 2
+    layout.card('歲運聯動分析 v2（系統模型）', [
+      hasLuckTransition
+        ? `大運背景：${fv.luckTransition!.segments[0].luckCycle} → ${fv.luckTransition!.segments[1].luckCycle}（${y.year} 年跨大運切換）`
+        : lc
+        ? `大運背景：${lc.pillar}${lc.ageRange ? `（${lc.ageRange}）` : ''}　${lc.overall}`
+        : '大運背景：起運歲數尚未驗證，僅以流年流月作系統初判',
+      ...(hasLuckTransition ? [] : lc ? lc.helpfulFactors.map((f) => `　＋ ${f}`) : []),
+      ...(hasLuckTransition ? [] : lc ? lc.pressureFactors.map((f) => `　－ ${f}`) : []),
+      `年度主題：${y.year} ${y.pillar}（${y.stemTenGod}）　${y.theme}`,
+      `系統等級：${y.score.level}（分數 ${y.score.score}）　${y.score.scoreNote}`,
+    ], { accent: COLORS.gold })
+    if (fv.luckTransition?.hasTransition) {
+      layout.card('大運切換分段', [
+        `${y.year} 年跨越大運切換：切換前以${fv.luckTransition.segments[0]?.luckCycle}大運為背景，切換後以${fv.luckTransition.segments[1]?.luckCycle}大運為背景。年度解讀需分段看待。`,
+        ...fv.luckTransition.segments.map((segment) => `${segment.label}：${segment.from} 至 ${segment.to}，${segment.luckCycle}大運`),
+        fv.luckTransition.note,
+      ], { accent: COLORS.gold })
+    } else if (fv.luckTransition && fv.luckTransition.verified === false) {
+      layout.card('大運切換分段', [fv.luckTransition.note])
+    }
+    layout.card('流年正面因素', y.positiveFactors.length ? y.positiveFactors : ['—'])
+    layout.card('流年壓力因素', y.riskFactors.length ? y.riskFactors : ['—'])
+    if (y.luckCycleModifier.length) layout.card('大運調節', y.luckCycleModifier)
+    layout.card('流年結論', [y.conclusion])
+    const km = fv.yearSummary.keyMonths
+    layout.card('重要月份', [
+      `較有支持：${km.supportive.join('、') || '無'}`,
+      `壓力較高：${km.pressure.join('、') || '暫無明顯月份'}`,
+      `機會與壓力並存：${km.neutral.join('、') || '無'}`,
+    ])
+    layout.table('每月摘要', fv.monthImpacts.map((m) => [
+      m.monthLabel,
+      m.pillar,
+      m.theme,
+      m.riskFactors.join('；') || '—',
+      m.suggestion,
+    ]), [45, 50, 110, 180, 120])
+    layout.card('年度總結與保守建議', [
+      fv.yearSummary.summary,
+      ...fv.yearSummary.advice.map((a) => `建議：${a}`),
+      ...fv.yearSummary.warnings.map((w) => `注意：${w}`),
+    ])
+    layout.paragraph(fv.note, { color: COLORS.muted })
+  }
+
   if (result.liunianNote) layout.paragraph(result.liunianNote, { color: COLORS.muted })
-  layout.table('流年', result.liunian.map((l) => [`${l.year}`, l.pillar, l.tenGod, l.nayin, l.summary]), [55, 55, 60, 75, 260])
+  layout.table('流年干支參考', result.liunian.map((l) => [`${l.year}`, l.pillar, l.tenGod, l.nayin, l.summary]), [55, 55, 60, 75, 260])
   layout.paragraph('流月以節氣切換，不等於農曆初一或國曆每月 1 日。', { color: COLORS.muted })
   if (result.liuyueNote) layout.paragraph(result.liuyueNote, { color: COLORS.muted })
-  layout.table('節氣流月', result.liuyueDetails.map((m) => [m.label, m.range || '', m.pillar, m.tenGod, m.advice]), [45, 90, 55, 60, 275])
+  const monthImpactByPillar = Object.fromEntries((result.fortuneV2?.monthImpacts ?? []).map((m) => [m.pillar, m]))
+  layout.table('節氣流月干支參考', result.liuyueDetails.map((m) => {
+    const impact = monthImpactByPillar[m.pillar]
+    return [m.label, m.range || '', m.pillar, m.tenGod, impact ? formatMonthImpactSummary(impact) : m.advice]
+  }), [45, 90, 55, 60, 275])
 
   // ── 第 7 頁：薪資主題分析 ─────────────────────────────────────────
   layout.ensure(PAGE_H)
@@ -405,31 +590,84 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
   layout.ensure(PAGE_H)
   layout.title('姓名與神煞驗證狀態')
 
-  if (result.wuge && result.wuge.總格 > 0) {
+  if (result.wuge) {
     const w = result.wuge
-    layout.paragraph('姓名五格：待校驗。姓名筆畫與字五行依流派不同，未校驗前不輸出吉凶定論，以下為資料庫計算值。', { color: COLORS.muted })
+    layout.paragraph('姓名學資料依本系統內建 81 數理與三才配置表判讀，不同流派可能有差異。', { color: COLORS.muted })
     if (result.nameValidationNote) layout.paragraph(result.nameValidationNote, { color: COLORS.muted })
-    layout.table('五格數理（待校驗）', [
-      ['天格', `${w.天格}`, w.luck.天格, w.details.天格?.meaning || ''],
-      ['人格', `${w.人格}`, w.luck.人格, w.details.人格?.meaning || ''],
-      ['地格', `${w.地格}`, w.luck.地格, w.details.地格?.meaning || ''],
-      ['外格', `${w.外格}`, w.luck.外格, w.details.外格?.meaning || ''],
-      ['總格', `${w.總格}`, w.luck.總格, w.details.總格?.meaning || ''],
-    ], [55, 45, 55, 380])
-    if (w.charAnalysis.length) {
-      layout.table('姓名字義與五行', w.charAnalysis.map((c) => [c.char, `${c.strokes}劃`, c.wuxing || '需確認', c.meaning || '需確認']), [45, 65, 65, 350])
+    if (result.nameSummary) layout.paragraph(result.nameSummary, { color: COLORS.muted })
+    layout.card('姓名校驗狀態', [
+      `姓名：${input.name || w.chars?.map((c) => c.char).join('') || '未命名'}`,
+      `資料來源：${w.source || '康熙筆畫資料庫尚未完整收錄'}`,
+      `校驗狀態：${w.verified ? '筆畫已校驗；81 數理已啟用；三才依資料表判讀' : '待校驗'}`,
+      result.nameSummary || '',
+      w.unknownChars.length ? `缺少字：${w.unknownChars.join('、')}` : '',
+      '不同流派數理名稱與吉凶可能略有差異；本頁不輸出保證性結論。',
+    ].filter(Boolean), { accent: COLORS.gold })
+    if (w.chars?.length) {
+      layout.table('康熙筆畫', w.chars.map((c) => [
+        c.char,
+        c.verified ? `${c.strokes} 畫` : '待校驗',
+        c.source || '待校驗',
+      ]), [55, 80, 390])
     }
-    if (w.unknownChars.length) {
-      layout.paragraph(`以下字元筆畫資料庫尚未收錄，需手動校驗：${w.unknownChars.join('、')}`, { color: COLORS.muted })
+    if (w.verified && w.wugeFortune?.verified) {
+      layout.table('五格 81 數理', [
+        ['天格', `${w.天格}`, w.wugeFortune.items.heaven.level || '', w.wugeFortune.items.heaven.title || '', w.wugeFortune.items.heaven.summary || ''],
+        ['人格', `${w.人格}`, w.wugeFortune.items.personality.level || '', w.wugeFortune.items.personality.title || '', w.wugeFortune.items.personality.summary || ''],
+        ['地格', `${w.地格}`, w.wugeFortune.items.earth.level || '', w.wugeFortune.items.earth.title || '', w.wugeFortune.items.earth.summary || ''],
+        ['外格', `${w.外格}`, w.wugeFortune.items.outer.level || '', w.wugeFortune.items.outer.title || '', w.wugeFortune.items.outer.summary || ''],
+        ['總格', `${w.總格}`, w.wugeFortune.items.total.level || '', w.wugeFortune.items.total.title || '', w.wugeFortune.items.total.summary || ''],
+      ], [45, 35, 45, 75, 325])
+    }
+    if (w.sancai && 'combination' in w.sancai) {
+      layout.card('三才配置', [
+        `三才：${w.sancai.combination}`,
+        `天格：${w.sancai.heaven?.element || ''}｜人格：${w.sancai.personality?.element || ''}｜地格：${w.sancai.earth?.element || ''}`,
+        `判斷：${w.sancai.level}。${w.sancai.summary}`,
+        `資料來源：${w.sancai.source}`,
+        `資料表完整性：${w.sancai.tableCoverage === 'full' ? '完整 125 種' : '部分收錄；未收錄組合不輸出保證性吉凶定論'}`,
+      ], { accent: COLORS.gold })
     }
   } else {
     layout.paragraph('未輸入姓名，略過五格分析。', { color: COLORS.muted })
   }
 
-  // 神煞：公式未完成時顯示尚未驗證，不輸出任何吉凶結論
+  // 神煞：只列公式化項目；未建立查法者標示尚未驗證
   if (result.shensha && result.shensha.length > 0) {
-    layout.paragraph(result.shenshaNote || '', { color: COLORS.muted })
-    layout.table('神煞', result.shensha.map((s) => [s.name, s.status || s.type, s.basis || '依據資料表', s.desc]), [75, 55, 120, 275])
+    const verifiedShensha = result.shensha.filter((s) => s.verified === true)
+    const unverifiedShensha = result.shensha.filter((s) => s.status === '尚未驗證' || s.verified === false)
+    const formatTargets = (stems?: string[], branches?: string[] | Record<string, string[]>, pillars?: string[]) => {
+      const stemText = stems?.length ? stems.join('、') : ''
+      const branchText = branches ? formatShenshaTargetBranches(branches) : ''
+      const pillarText = pillars?.length ? pillars.join('、') : ''
+      return [stemText, branchText, pillarText].filter(Boolean).join(' / ')
+    }
+    layout.paragraph('本頁僅顯示已建立公式與測試的神煞。神煞結果應搭配原局、十神、格局與歲運判斷，不作單項絕對定論；未建立查法表者標示為尚未驗證。', { color: COLORS.muted })
+    if (result.shenshaNote) layout.paragraph(result.shenshaNote, { color: COLORS.muted })
+    if (verifiedShensha.length) {
+      layout.table('已公式化神煞', verifiedShensha.map((s) => [
+        s.name,
+        s.status || '',
+        s.basis || '',
+        formatShenshaLookupKey(s.lookupKey),
+        formatTargets(s.targetStems, s.targetBranches, s.targetPillars),
+        s.matchedPillars?.length
+          ? formatShenshaMatchedPillars(s.matchedPillars)
+          : formatShenshaMatchedBranches(s.matchedBranches),
+      ]), [65, 45, 105, 80, 80, 150])
+    }
+    if (unverifiedShensha.length) {
+      layout.table('尚未驗證神煞', unverifiedShensha.map((s) => [
+        s.name,
+        '尚未驗證',
+        s.reason || '尚未建立查法表與測試',
+      ]), [75, 80, 370])
+    }
+    layout.card('版本與未開放說明', [
+      '咸池：已由桃花模組覆蓋，本階段以桃花公式呈現。',
+      '孤辰寡宿：本系統採已測試版本，其他流派不另列卡，避免混淆。',
+      '其他擇日神煞：尚未開放；未建立公式、資料表與測試前，不列入正式結論。',
+    ], { accent: COLORS.gold })
   } else {
     layout.card('神煞：尚未驗證', [
       '神煞需依日干、年干、地支或月令查法判定，目前公式未完成驗證，不列入正式結論。',
@@ -439,6 +677,10 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
   if (result.aiQuestions?.length) {
     layout.title('AI 追問紀錄')
     result.aiQuestions.forEach((q) => layout.card(`問：${q.question}`, [q.answer], { accent: COLORS.gold }))
+  }
+
+  if (options.includePersonalizedExplanation !== false) {
+    renderPersonalizedExplanation(layout, result)
   }
 
   // ── 每頁底部加固定來源說明（換行、不與頁碼重疊）────────────────

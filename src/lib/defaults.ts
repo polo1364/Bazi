@@ -13,5 +13,9 @@ export function createEmptyInput(): import('../types').BirthInput {
     topic: '',
     query: '',
     compoundSurname: '',
+    birthCity: '',
+    birthLongitude: '',
+    solarTimeMode: 'none',
+    timezone: 'Asia/Taipei',
   }
 }
