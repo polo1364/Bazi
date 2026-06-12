@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>八字 x 姓名合參 - 基礎結構圖</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+      background: #070d1a;
+      color: #cbd5e1;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    h1 { color: #f0c040; font-size: 22px; text-align: center; margin-bottom: 6px; }
+    .sub { text-align: center; color: #94a3b8; font-size: 12px; margin-bottom: 28px; }
+    h2 { color: #e2e8f0; font-size: 16px; margin: 28px 0 10px; }
+    .note { color: #64748b; font-size: 11px; margin-bottom: 12px; }
+    .pillars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .pillar {
+      background: #0f172a;
+      border: 1.5px solid #334155;
+      border-radius: 10px;
+      padding: 14px 10px;
+      text-align: center;
+    }
+    .pillar.day { background: #172554; border-color: #f0c040; }
+    .pillar .pos { font-size: 11px; color: #94a3b8; }
+    .pillar .god { font-size: 10px; color: #fde68a; margin: 6px 0; }
+    .pillar.day .god { color: #f0c040; font-weight: 700; }
+    .pillar .gz { font-size: 28px; font-weight: 700; color: #f8fafc; margin: 8px 0; }
+    .pillar.day .gz { color: #f0c040; }
+    .pillar .role { font-size: 10px; color: #64748b; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 800px) { .split, .pillars, .flow, .compare { grid-template-columns: 1fr !important; } }
+    .circle-wrap { display: flex; justify-content: center; }
+    .wuge { display: flex; flex-direction: column; gap: 8px; }
+    .wuge-item {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 8px 12px; background: #0f172a; border-radius: 6px;
+      border-left: 3px solid #334155;
+    }
+    .wuge-item.main { border-left-color: #f0c040; background: #172554; }
+    .wuge-item b { min-width: 36px; color: #e2e8f0; }
+    .wuge-item span { font-size: 11px; color: #94a3b8; }
+    .sancai {
+      margin-top: 10px; padding: 10px 12px;
+      background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+      font-size: 11px; color: #94a3b8;
+    }
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .flow-box {
+      padding: 14px; border-radius: 8px;
+      background: #0f172a; border: 1px solid #334155; font-size: 11px;
+    }
+    .flow-box.out { background: #172554; border-color: #f0c040; }
+    .flow-box b { display: block; margin-bottom: 8px; color: #e2e8f0; }
+    .flow-box.out b { color: #f0c040; }
+    .flow-box li { margin-left: 14px; color: #64748b; margin-bottom: 4px; }
+    .pipeline { margin-top: 14px; font-size: 12px; color: #94a3b8; text-align: center; }
+    .pipeline em { color: #f0c040; font-style: normal; font-weight: 700; }
+    table.compare {
+      width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px;
+    }
+    table.compare th, table.compare td {
+      border: 1px solid #334155; padding: 8px 10px; text-align: left;
+    }
+    table.compare th { background: #1e293b; color: #e2e8f0; }
+    table.compare td { color: #94a3b8; }
+    footer { margin-top: 32px; text-align: center; font-size: 10px; color: #475569; }
+  </style>
+</head>
+<body>
+  <h1>八字 x 姓名合參 - 基礎結構圖</h1>
+  <p class="sub">四柱命理（非紫微斗數）| 橫排：年 &rarr; 月 &rarr; 日 &rarr; 時</p>
+
+  <h2>一、四柱命盤（標準橫排）</h2>
+  <p class="note">每柱：十神 &rarr; 天干 &rarr; 地支 &rarr; 藏干十神 &rarr; 納音 | 日主 = 日柱天干</p>
+  <div class="pillars">
+    <div class="pillar">
+      <div class="pos">年柱</div>
+      <div class="god">偏財</div>
+      <div class="gz">丁<br>卯</div>
+      <div class="role">祖上 / 早年</div>
+    </div>
+    <div class="pillar">
+      <div class="pos">月柱（月令最重）</div>
+      <div class="god">傷官</div>
+      <div class="gz">甲<br>辰</div>
+      <div class="role">父母 / 青年</div>
+    </div>
+    <div class="pillar day">
+      <div class="pos">日柱</div>
+      <div class="god">日主</div>
+      <div class="gz">癸<br>丑</div>
+      <div class="role">自己 / 配偶</div>
+    </div>
+    <div class="pillar">
+      <div class="pos">時柱</div>
+      <div class="god">劫財</div>
+      <div class="gz">壬<br>子</div>
+      <div class="role">子女 / 晚年</div>
+    </div>
+  </div>
+
+  <div class="split">
+    <div>
+      <h2>二、App 圓形視覺化（ChartCircle）</h2>
+      <p class="note">上：年柱 | 右：月柱 | 下：日柱 | 左：時柱</p>
+      <div class="circle-wrap">
+        <svg viewBox="0 0 400 400" width="320" height="320" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="200" cy="200" r="150" fill="none" stroke="#334155" stroke-width="1" stroke-dasharray="6 6"/>
+          <circle cx="200" cy="200" r="52" fill="#172554" stroke="#f0c040" stroke-width="2"/>
+          <text x="200" y="194" text-anchor="middle" fill="#94a3b8" font-size="11">日主</text>
+          <text x="200" y="218" text-anchor="middle" fill="#f0c040" font-size="24" font-weight="700">癸</text>
+          <line x1="200" y1="200" x2="200" y2="70" stroke="#475569" stroke-width="1.5"/>
+          <rect x="160" y="40" width="80" height="48" rx="6" fill="#0f172a" stroke="#334155"/>
+          <text x="200" y="60" text-anchor="middle" fill="#94a3b8" font-size="10">年柱</text>
+          <text x="200" y="78" text-anchor="middle" fill="#cbd5e1" font-size="14">丁卯</text>
+          <line x1="200" y1="200" x2="330" y2="200" stroke="#475569" stroke-width="1.5"/>
+          <rect x="330" y="176" width="80" height="48" rx="6" fill="#0f172a" stroke="#334155"/>
+          <text x="370" y="196" text-anchor="middle" fill="#94a3b8" font-size="10">月柱</text>
+          <text x="370" y="214" text-anchor="middle" fill="#cbd5e1" font-size="14">甲辰</text>
+          <line x1="200" y1="200" x2="200" y2="330" stroke="#475569" stroke-width="1.5"/>
+          <rect x="160" y="330" width="80" height="48" rx="6" fill="#172554" stroke="#f0c040"/>
+          <text x="200" y="350" text-anchor="middle" fill="#94a3b8" font-size="10">日柱</text>
+          <text x="200" y="368" text-anchor="middle" fill="#cbd5e1" font-size="14">癸丑</text>
+          <line x1="200" y1="200" x2="70" y2="200" stroke="#475569" stroke-width="1.5"/>
+          <rect x="10" y="176" width="80" height="48" rx="6" fill="#0f172a" stroke="#334155"/>
+          <text x="50" y="196" text-anchor="middle" fill="#94a3b8" font-size="10">時柱</text>
+          <text x="50" y="214" text-anchor="middle" fill="#cbd5e1" font-size="14">壬子</text>
+        </svg>
+      </div>
+    </div>
+
+    <div>
+      <h2>三、姓名五格（單姓三字例）</h2>
+      <p class="note">例：王 + 小 + 明</p>
+      <div class="wuge">
+        <div class="wuge-item"><b>天格</b><span>祖運、長輩 - 姓筆畫合 + 1（單姓）</span></div>
+        <div class="wuge-item main"><b>人格</b><span>主運、性格 - 姓末筆 + 名首筆</span></div>
+        <div class="wuge-item"><b>地格</b><span>前運、家庭 - 名筆畫合 + 1（單名）</span></div>
+        <div class="wuge-item"><b>外格</b><span>副運、人際 - 總格 - 人格 + 1</span></div>
+        <div class="wuge-item"><b>總格</b><span>後運、整體 - 全名筆畫總和</span></div>
+      </div>
+      <div class="sancai"><b style="color:#e2e8f0">三才</b><br>天格尾數五行 + 人格尾數五行 + 地格尾數五行 &rarr; 天 / 人 / 地 生剋</div>
+    </div>
+  </div>
+
+  <h2>四、系統資料流</h2>
+  <div class="flow">
+    <div class="flow-box">
+      <b>排盤層</b>
+      <ul>
+        <li>公曆 &rarr; 農曆 &rarr; 節氣</li>
+        <li>年 / 月 / 日 / 時四柱</li>
+        <li>lunar-javascript 或手動</li>
+      </ul>
+    </div>
+    <div class="flow-box">
+      <b>八字分析層</b>
+      <ul>
+        <li>十神、藏干、五行</li>
+        <li>刑沖合害、格局</li>
+        <li>大運、流年、流月</li>
+      </ul>
+    </div>
+    <div class="flow-box">
+      <b>姓名學層</b>
+      <ul>
+        <li>五格（天人地外總）</li>
+        <li>三才生剋</li>
+        <li>逐字筆畫與五行</li>
+      </ul>
+    </div>
+    <div class="flow-box out">
+      <b>輸出層</b>
+      <ul>
+        <li>命盤總結</li>
+        <li>AI 解讀（選用）</li>
+        <li>PDF 報告</li>
+      </ul>
+    </div>
+  </div>
+  <p class="pipeline">輸入 &rarr; 排盤層 &rarr; 八字分析 + 姓名學 &rarr; <em>合參報告</em></p>
+
+  <h2>與紫微斗數的差別</h2>
+  <table class="compare">
+    <tr><th>項目</th><th>你的系統</th><th>紫微斗數</th></tr>
+    <tr><td>核心</td><td>四柱天干地支</td><td>命宮 + 十二宮</td></tr>
+    <tr><td>符號</td><td>十神、五行、納音</td><td>紫微、天機、太陽等主星</td></tr>
+    <tr><td>姓名</td><td>五格、三才、字五行</td><td>通常不併入</td></tr>
+    <tr><td>盤面</td><td>四柱橫排 / 圓形視覺化</td><td>方形十二宮星盤</td></tr>
+  </table>
+
+  <footer>範例干支僅供結構示意 | 對應專案 Pillar / WugeResult / AnalysisResult</footer>
+</body>
+</html>

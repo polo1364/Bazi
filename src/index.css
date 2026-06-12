@@ -1396,3 +1396,191 @@ body {
 .pdf-export-mode .text-\[\#f0c040\] {
   color: #f0c040 !important;
 }
+
+/* ── 報告區塊：響應式與防溢出 ── */
+.main-panel,
+.report-stack,
+.tab-panel-root {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.report-stack {
+  overflow-x: clip;
+}
+
+.tab-panel-root {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 十神詳表：欄位不擠壓，小螢幕橫向捲動 */
+.chart-detail-table {
+  -webkit-overflow-scrolling: touch;
+}
+
+.chart-detail-table table {
+  width: 100%;
+  min-width: 36rem;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.chart-detail-table th,
+.chart-detail-table td {
+  padding: 0.5rem 0.75rem;
+  vertical-align: top;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+}
+
+.chart-detail-table th:nth-child(1),
+.chart-detail-table td:nth-child(1) { width: 12%; }
+.chart-detail-table th:nth-child(2),
+.chart-detail-table td:nth-child(2) { width: 12%; }
+.chart-detail-table th:nth-child(3),
+.chart-detail-table td:nth-child(3) { width: 14%; }
+.chart-detail-table th:nth-child(4),
+.chart-detail-table td:nth-child(4) { width: 18%; }
+.chart-detail-table th:nth-child(5),
+.chart-detail-table td:nth-child(5) { width: 44%; }
+
+/* 五行條：不溢出容器 */
+.element-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+}
+
+.element-bar-label {
+  flex-shrink: 0;
+  width: 1.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+@media (min-width: 640px) {
+  .element-bar-label {
+    width: 2rem;
+  }
+}
+
+.element-bar-track {
+  flex: 1;
+  min-width: 0;
+  height: 0.75rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+@media (min-width: 640px) {
+  .element-bar-track {
+    height: 1rem;
+  }
+}
+
+.element-bar-fill {
+  height: 100%;
+  max-width: 100%;
+  border-radius: 9999px;
+  transition: width 0.7s ease;
+}
+
+.element-bar-value {
+  flex-shrink: 0;
+  width: 2.5rem;
+  text-align: right;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* 刑沖合害：卡片間距一致 */
+.relation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.relation-card {
+  border-radius: 0.75rem;
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* 流月：手機單欄 */
+.flow-month-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+@media (min-width: 480px) {
+  .flow-month-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 640px) {
+  .flow-month-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .flow-month-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .flow-month-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.flow-note-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.flow-note-badge {
+  max-width: 100%;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+/* 四柱卡片：小螢幕文字不撐破 */
+.pillar-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pillar-hidden,
+.pillar-meta {
+  max-width: 100%;
+  word-break: break-word;
+}
+
+/* 手機版趨勢格：避免 5 欄過擠 */
+@media (max-width: 767px) {
+  .trend-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.375rem;
+  }
+
+  .trend-item {
+    padding: 0.5rem 0.2rem;
+    min-width: 0;
+  }
+}

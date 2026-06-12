@@ -11,7 +11,20 @@ interface Props {
 }
 
 export default function ShenshaPanel({ items }: Props) {
-  if (items.length === 0) return null
+  /* 公式尚未完成時顯示說明，不輸出任何吉凶結論 */
+  if (items.length === 0) {
+    return (
+      <section className="card animate-fade-in p-4 sm:p-5">
+        <h3 className="section-title mb-3">神煞</h3>
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs leading-relaxed text-amber-100">
+          <p className="font-medium">神煞：尚未驗證</p>
+          <p className="mt-1 text-muted">
+            神煞需依日干、年干、地支或月令查法判定，目前公式未完成驗證，因此不列入正式結論。
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="card animate-fade-in p-4 sm:p-5">

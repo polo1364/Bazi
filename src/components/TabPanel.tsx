@@ -28,9 +28,16 @@ const ELEMENT_BAR: Record<string, string> = {
   水: 'bg-gradient-to-r from-blue-600 to-blue-400',
 }
 
+// 流年流月加節氣說明用的常數
+const FLOW_YEAR_NOTE = '八字流年以立春為界，非國曆 1 月 1 日。'
+const FLOW_MONTH_NOTE = '流月以節氣切換，不等於農曆初一或國曆每月 1 日。'
+
+// 五行分數模型說明
+const ELEMENT_MODEL_NOTE_EXTRA = '五行分數為系統自訂權重模型，僅供相對比較，不代表傳統命理唯一標準。'
+
 function TenGodDetailTable({ pillars }: { pillars: ReturnType<typeof pillarsToArray> }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+    <div className="chart-detail-table overflow-hidden rounded-2xl border border-white/10 bg-black/20">
       <div className="border-b border-white/10 px-4 py-3">
         <h4 className="text-sm font-bold text-[#f0c040]">十神詳表</h4>
         <p className="mt-1 text-xs text-muted">地支十神由地支藏干逐一計算，第一個藏干為主氣。</p>
@@ -77,7 +84,7 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
 
   if (tab === '命盤') {
     return (
-      <div className="space-y-4 p-2 sm:p-4">
+      <div className="tab-panel-root space-y-4 p-2 sm:p-4">
         {chart.sourceNotes && (
           <div className="rounded-xl border border-[#f0c040]/20 bg-[#f0c040]/5 px-4 py-3 text-xs leading-relaxed text-secondary">
             {chart.sourceNotes.join('；')}。
@@ -91,19 +98,25 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
 
   if (tab === '五行') {
     return (
-      <div className="space-y-4 p-4 sm:p-5">
+      <div className="tab-panel-root space-y-4 p-4 sm:p-5">
+        {/* 五行模型說明（固定顯示完整版） */}
         <div className="rounded-xl border border-white/5 bg-black/20 p-3 text-xs leading-relaxed text-muted">
-          {result.elementModelNote}
+          <p>{ELEMENT_MODEL_NOTE_EXTRA}</p>
+          {result.elementModelNote && result.elementModelNote !== ELEMENT_MODEL_NOTE_EXTRA && (
+            <p className="mt-1">{result.elementModelNote}</p>
+          )}
           {result.elementReason && <p className="mt-2 text-secondary">{result.elementReason}</p>}
         </div>
         {elements.map((el) => (
-          <div key={el} className="flex items-center gap-3">
-            <span className={`w-6 text-sm font-semibold sm:w-8 ${ELEMENT_CLASS[el]}`}>{el}</span>
-            <div className="h-3 flex-1 overflow-hidden rounded-full bg-black/30 sm:h-4">
-              <div className={`h-full rounded-full transition-all duration-700 ${ELEMENT_BAR[el]}`}
-                style={{ width: `${(elementStats[el] / maxStat) * 100}%` }} />
+          <div key={el} className="element-bar-row">
+            <span className={`element-bar-label ${ELEMENT_CLASS[el]}`}>{el}</span>
+            <div className="element-bar-track">
+              <div
+                className={`element-bar-fill ${ELEMENT_BAR[el]}`}
+                style={{ width: `${(elementStats[el] / maxStat) * 100}%` }}
+              />
             </div>
-            <span className="w-10 text-right text-xs tabular-nums text-muted">{elementStats[el].toFixed(1)}</span>
+            <span className="element-bar-value">{elementStats[el].toFixed(1)}</span>
           </div>
         ))}
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -128,7 +141,7 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
 
   if (tab === '十神') {
     return (
-      <div className="space-y-4 p-4 sm:p-5">
+      <div className="tab-panel-root space-y-4 p-4 sm:p-5">
         <TenGodDetailTable pillars={pillars} />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {pillars.map((p) => (
@@ -149,59 +162,94 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
   }
 
   if (tab === '強弱') {
+    const basis = result.strengthBasis ?? []
     return (
-      <div className="p-6 text-center sm:p-8">
-        <div className="relative inline-flex items-center justify-center">
-          <svg className="h-32 w-32 -rotate-90 sm:h-40 sm:w-40" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-            <circle cx="50" cy="50" r="42" fill="none" stroke="#f0c040" strokeWidth="8"
-              strokeDasharray={`${strength * 2.64} 264`} strokeLinecap="round" />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-3xl font-bold text-[#f0c040] sm:text-4xl">{strength}%</span>
-            <span className="text-sm text-secondary">系統初判：{strengthLabel}</span>
+      <div className="tab-panel-root p-5 sm:p-6 space-y-5">
+        {/* 環形分數圖 */}
+        <div className="flex flex-col items-center">
+          <div className="relative inline-flex items-center justify-center">
+            <svg className="h-32 w-32 -rotate-90 sm:h-40 sm:w-40" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#f0c040" strokeWidth="8"
+                strokeDasharray={`${strength * 2.64} 264`} strokeLinecap="round" />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl font-bold text-[#f0c040] sm:text-4xl">{strength}%</span>
+              <span className="text-xs text-muted mt-1">系統參考分數</span>
+            </div>
           </div>
+          <p className="mt-2 text-xs text-muted text-center">{result.strengthScoreNote}</p>
         </div>
-        <p className="mt-4 text-xs leading-relaxed text-muted">{result.strengthScoreNote}</p>
-        <div className="mx-auto mt-4 max-w-2xl rounded-xl border border-white/5 bg-black/20 p-4 text-left">
-          <div className="mb-2 text-xs font-semibold text-[#f0c040]">判斷依據（可信度：{result.strengthConfidence || '中'}）</div>
-          <ul className="space-y-1 text-xs leading-relaxed text-secondary">
-            {(result.strengthBasis ?? []).map((item) => <li key={item}>{item}</li>)}
-          </ul>
+
+        {/* 結構化身強弱說明 */}
+        <div className="rounded-xl border border-[#f0c040]/20 bg-[#f0c040]/5 p-4 space-y-3">
+          <div className="flex flex-wrap gap-4 text-sm">
+            <div>
+              <span className="text-muted text-xs">身強弱</span>
+              <div className="font-bold text-[#f0c040] mt-0.5">{strengthLabel}</div>
+            </div>
+            <div>
+              <span className="text-muted text-xs">可信度</span>
+              <div className="font-medium text-secondary mt-0.5">{result.strengthConfidence || '中'}</div>
+            </div>
+            <div>
+              <span className="text-muted text-xs">系統參考分數</span>
+              <div className="font-medium text-secondary mt-0.5">{strength}%</div>
+            </div>
+          </div>
+          {basis.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-[#f0c040] mb-1.5">判斷依據</div>
+              <ul className="space-y-1">
+                {basis.map((item) => (
+                  <li key={item} className="text-xs leading-relaxed text-secondary flex gap-1.5">
+                    <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-[#f0c040]/50" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
-        <div className="mt-6 flex flex-wrap justify-center gap-2 text-sm">
-          <span className="text-muted">喜用初判</span>
+
+        {/* 喜用初判 */}
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted text-xs">喜用初判</span>
           {favorableElements.map((e) => (
             <span key={e} className={`rounded-full border border-white/10 bg-black/20 px-3 py-0.5 text-xs font-medium ${ELEMENT_CLASS[e]}`}>{e}</span>
           ))}
         </div>
-        {result.favorableNote && <p className="mt-3 text-xs text-muted">{result.favorableNote}</p>}
+        {result.favorableNote && <p className="text-xs text-muted">{result.favorableNote}</p>}
       </div>
     )
   }
 
   if (tab === '刑沖') {
     return (
-      <div className="space-y-2 p-4 sm:p-5">
+      <div className="tab-panel-root relation-list p-4 sm:p-5">
         {result.patternNote && (
           <div className="mb-3 rounded-xl border border-[#f0c040]/20 bg-[#f0c040]/5 px-4 py-3 text-xs leading-relaxed text-secondary">
             格局傾向：{result.pattern}。{result.patternNote}
           </div>
         )}
+        {/* 只顯示規則引擎成立的項目，不作額外推斷 */}
         {relations.map((r) => (
-          <div key={r.label} className={`rounded-xl border px-4 py-3 text-sm ${RELATION_STYLE[r.type] ?? RELATION_STYLE.和}`}>
+          <div key={r.label} className={`relation-card border ${RELATION_STYLE[r.type] ?? RELATION_STYLE.和}`}>
             <span className="mr-2 rounded-md bg-black/30 px-2 py-0.5 text-[10px] font-medium">{r.type}</span>
             <span className="font-medium">{r.label}</span>
             <span className="text-muted"> — {r.desc}</span>
           </div>
         ))}
+        <p className="pt-2 text-[10px] text-muted">
+          自刑需同支出現兩次方成立；三合需三支俱全；六合只列合，未判定合化前不宣稱合化。
+        </p>
       </div>
     )
   }
 
   if (tab === '大運') {
     return (
-      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-4">
+      <div className="tab-panel-root grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-4">
         {dayunDetails.map((d) => (
           <div key={d.age} className="card-solid p-4 transition hover:border-[#f0c040]/20">
             <div className="flex items-center justify-between gap-2">
@@ -218,11 +266,12 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
     )
   }
 
+  /* 流年流月頁（預設 tab） */
   return (
-    <div className="space-y-5 p-4 sm:p-5">
+    <div className="tab-panel-root space-y-5 p-4 sm:p-5">
       <div>
-        <h4 className="mb-3 text-xs font-semibold tracking-wide text-[#f0c040]">十年趨勢</h4>
-        {result.liunianNote && <p className="mb-3 text-xs leading-relaxed text-muted">{result.liunianNote}</p>}
+        <h4 className="mb-2 text-xs font-semibold tracking-wide text-[#f0c040]">十年趨勢</h4>
+        {result.liunianNote && <p className="mb-2 text-xs leading-relaxed text-muted">{result.liunianNote}</p>}
         <div className="trend-grid mb-5">
           {tenYearTrend.map((t) => (
             <div key={t.year} className="trend-item">
@@ -235,7 +284,12 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
             </div>
           ))}
         </div>
-        <h4 className="mb-3 text-xs font-semibold tracking-wide text-[#f0c040]">{analysisYear} 年 · 流年</h4>
+
+        {/* 流年區塊：加立春節氣說明 */}
+        <div className="flow-note-row">
+          <h4 className="text-xs font-semibold tracking-wide text-[#f0c040]">{analysisYear} 年 · 流年</h4>
+          <span className="flow-note-badge rounded-full bg-[#f0c040]/10 px-2 py-0.5 text-[10px] text-[#fde68a]">{FLOW_YEAR_NOTE}</span>
+        </div>
         <div className="space-y-2">
           {liunian.map((l) => (
             <div key={l.year}
@@ -251,10 +305,15 @@ export default function TabPanel({ tab, result, gender, analysisYear }: Props) {
           ))}
         </div>
       </div>
+
       <div>
-        <h4 className="mb-3 text-xs font-semibold tracking-wide text-[#f0c040]">{analysisYear} 年 · 節氣流月</h4>
+        {/* 流月區塊：加節氣說明 */}
+        <div className="flow-note-row">
+          <h4 className="text-xs font-semibold tracking-wide text-[#f0c040]">{analysisYear} 年 · 節氣流月</h4>
+          <span className="flow-note-badge rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-300">{FLOW_MONTH_NOTE}</span>
+        </div>
         {result.liuyueNote && <p className="mb-3 text-xs leading-relaxed text-muted">{result.liuyueNote}</p>}
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+        <div className="flow-month-grid">
           {liuyueDetails.map((m) => (
             <div key={m.month} className="card-solid p-2.5 text-center sm:p-3">
               <div className="text-[10px] text-muted">{m.label}</div>

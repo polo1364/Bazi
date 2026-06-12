@@ -9,6 +9,15 @@ const PAGE_W = 595.28
 const PAGE_H = 841.89
 const MARGIN = 42
 const GAP = 10
+const FOOTER_RESERVE = 88
+const CONTENT_WIDTH = PAGE_W - MARGIN * 2
+
+function scaleTableWidths(widths: number[]): number[] {
+  const sum = widths.reduce((a, b) => a + b, 0)
+  if (sum <= CONTENT_WIDTH) return widths
+  const ratio = CONTENT_WIDTH / sum
+  return widths.map((w) => Math.floor(w * ratio))
+}
 
 const COLORS = {
   bg: rgb(0.027, 0.051, 0.102),
@@ -119,7 +128,7 @@ class PdfLayout {
   }
 
   ensure(height: number) {
-    if (this.y - height < MARGIN) this.newPage()
+    if (this.y - height < MARGIN + FOOTER_RESERVE) this.newPage()
   }
 
   text(text: string, x: number, y: number, size: number, color = COLORS.text) {
@@ -158,14 +167,16 @@ class PdfLayout {
   card(title: string, lines: string[], options?: { accent?: ReturnType<typeof rgb> }) {
     const size = 10
     const titleH = 18
-    const wrapped = lines.flatMap((line) => wrapText(line, this.font, size, PAGE_W - MARGIN * 2 - 28))
-    const height = Math.max(54, titleH + wrapped.length * 15 + 22)
+    const lineH = 15
+    const innerW = CONTENT_WIDTH - 28
+    const wrapped = lines.flatMap((line) => wrapText(line, this.font, size, innerW))
+    const height = Math.max(54, titleH + wrapped.length * lineH + 22)
     this.ensure(height + GAP)
     const y = this.y - height
     this.page.drawRectangle({
       x: MARGIN,
       y,
-      width: PAGE_W - MARGIN * 2,
+      width: CONTENT_WIDTH,
       height,
       color: COLORS.card,
       borderColor: options?.accent ?? COLORS.border,
@@ -175,21 +186,22 @@ class PdfLayout {
     let cy = y + height - 38
     for (const line of wrapped) {
       this.text(line, MARGIN + 14, cy, size, COLORS.muted)
-      cy -= 15
+      cy -= lineH
     }
     this.y = y - GAP
   }
 
   table(title: string, rows: string[][], widths: number[]) {
+    const colWidths = scaleTableWidths(widths)
     this.title(title)
     for (const row of rows) {
       const size = 8.5
-      const wrappedCells = row.map((cell, i) => wrapText(cell, this.font, size, Math.max(24, widths[i] - 8)))
+      const wrappedCells = row.map((cell, i) => wrapText(cell, this.font, size, Math.max(24, colWidths[i] - 10)))
       const rowLines = Math.max(...wrappedCells.map((cell) => cell.length), 1)
       const rowH = Math.max(26, rowLines * 12 + 12)
       this.ensure(rowH + 2)
       const safeY = this.y - rowH
-      this.page.drawRectangle({ x: MARGIN, y: safeY, width: PAGE_W - MARGIN * 2, height: rowH, color: COLORS.card2, borderColor: COLORS.border, borderWidth: 0.4 })
+      this.page.drawRectangle({ x: MARGIN, y: safeY, width: CONTENT_WIDTH, height: rowH, color: COLORS.card2, borderColor: COLORS.border, borderWidth: 0.4 })
       let x = MARGIN + 8
       wrappedCells.forEach((cellLines, i) => {
         let lineY = safeY + rowH - 14
@@ -197,7 +209,7 @@ class PdfLayout {
           this.text(line, x, lineY, size, i === 0 ? COLORS.gold : COLORS.text)
           lineY -= 12
         })
-        x += widths[i]
+        x += colWidths[i]
       })
       this.y -= rowH + 4
     }
@@ -206,11 +218,15 @@ class PdfLayout {
 
   addPageNumbers() {
     const pages = this.doc.getPages()
+    const total = pages.length
     pages.forEach((page, index) => {
-      page.drawText(`${index + 1} / ${pages.length}`, {
-        x: PAGE_W - MARGIN - 34,
-        y: 22,
-        size: 8,
+      const label = `${index + 1} / ${total}`
+      const size = 8
+      const textW = this.font.widthOfTextAtSize(label, size)
+      page.drawText(label, {
+        x: PAGE_W - MARGIN - textW,
+        y: 16,
+        size,
         font: this.font,
         color: COLORS.muted,
       })
@@ -244,15 +260,28 @@ function sectionText(result: AnalysisResult, key: keyof NonNullable<AnalysisResu
   return result.aiSections?.[key] || fallback
 }
 
+// 每頁固定顯示的說明行（底部）
+const PDF_SOURCE_NOTES = [
+  '四柱排盤來源：lunar-javascript',
+  '十神、藏干、刑沖合害、五行強弱與文案由本系統規則引擎計算',
+  '八字流年以立春為界，非國曆 1 月 1 日',
+  '流月以節氣切換，不等於農曆初一或國曆每月 1 日',
+  '五行分數為系統自訂權重模型，僅供相對比較',
+  '身強弱為系統初判，需搭配完整旺衰模型驗證',
+]
+
 export async function exportPdf(_element: HTMLElement, input: BirthInput, result: AnalysisResult): Promise<void> {
   const pdfDoc = await PDFDocument.create()
   const font = await loadChineseFont(pdfDoc)
   const layout = new PdfLayout(pdfDoc, font)
 
+  // ── 第 1 頁：封面 ────────────────────────────────────────────────
   drawCover(layout, input, result)
-  layout.ensure(PAGE_H)
 
   const pillars = pillarsToArray(result.chart)
+
+  // ── 第 2 頁：命盤總覽與十神 ──────────────────────────────────────
+  layout.ensure(PAGE_H)
   layout.title('命盤總覽與十神')
   layout.card(input.name || '未命名命盤', [
     `四柱排盤來源：${result.chart.source === 'lunar-javascript' ? 'lunar-javascript' : '使用者輸入'}`,
@@ -262,7 +291,6 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
     `喜用初判：${result.favorableElements.join('、')}${result.unfavorableElements?.length ? `｜需留意：${result.unfavorableElements.join('、')}` : ''}`,
   ], { accent: COLORS.gold })
 
-  layout.title('四柱與十神')
   pillars.forEach((p) => {
     layout.card(`${p.label}：${p.stem}${p.branch}`, [
       `天干十神：${p.stemTenGod}`,
@@ -293,16 +321,21 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
     [45, 110, 180, 190],
   )
 
+  // ── 第 3 頁：五行與身強弱 ─────────────────────────────────────────
   layout.ensure(PAGE_H)
   layout.title('五行與身強弱')
-  layout.paragraph(result.elementModelNote || '')
+  layout.paragraph('五行分數為系統自訂權重模型，僅供相對比較，不代表傳統命理唯一標準。', { color: COLORS.muted })
+  if (result.elementModelNote) layout.paragraph(result.elementModelNote, { color: COLORS.muted })
   ;(['木', '火', '土', '金', '水'] as Element[]).forEach((el) => {
     const value = result.elementStats[el]
+    const maxVal = Math.max(...(['木', '火', '土', '金', '水'] as Element[]).map((e) => result.elementStats[e]), 1)
+    const barMaxW = 330
+    const barW = Math.min(barMaxW, Math.max(8, (value / maxVal) * barMaxW))
     layout.ensure(26)
     layout.text(el, MARGIN, layout.y - 10, 11, ELEMENT_COLOR[el])
-    layout.page.drawRectangle({ x: MARGIN + 28, y: layout.y - 14, width: 330, height: 10, color: COLORS.card2 })
-    layout.page.drawRectangle({ x: MARGIN + 28, y: layout.y - 14, width: Math.max(8, value * 34), height: 10, color: ELEMENT_COLOR[el] })
-    layout.text(value.toFixed(1), MARGIN + 372, layout.y - 13, 9, COLORS.muted)
+    layout.page.drawRectangle({ x: MARGIN + 28, y: layout.y - 14, width: barMaxW, height: 10, color: COLORS.card2 })
+    layout.page.drawRectangle({ x: MARGIN + 28, y: layout.y - 14, width: barW, height: 10, color: ELEMENT_COLOR[el] })
+    layout.text(value.toFixed(1), MARGIN + 28 + barMaxW + 8, layout.y - 13, 9, COLORS.muted)
     layout.y -= 24
   })
   layout.card('五行相對結果', [
@@ -311,21 +344,54 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
     result.elementReason || '',
   ])
   layout.card('日主旺弱判斷依據', [
-    `身強弱：${result.strengthLabel}；參考分數：${result.strength}%`,
-    result.strengthScoreNote || '',
-    ...(result.strengthBasis ?? []),
+    `身強弱：${result.strengthLabel}`,
+    `系統參考分數：${result.strength}%`,
+    result.strengthScoreNote || '此分數為系統模型估算，不是命理絕對值',
     `可信度：${result.strengthConfidence || '中'}`,
+    ...(result.strengthBasis ?? []),
     `喜用初判：${result.favorableElements.join('、')}${result.unfavorableElements?.length ? `；需留意：${result.unfavorableElements.join('、')}` : ''}`,
     result.favorableNote || '',
   ], { accent: COLORS.gold })
   layout.card('喜用神補強', result.elementAdvice.map((a) => `${a.element}：顏色 ${a.colors.join('、')}；方位 ${a.directions.join('、')}；職業 ${a.careers.join('、')}；習慣 ${a.habits.join('、')}`))
 
+  // ── 第 4 頁：格局與刑沖合害 ──────────────────────────────────────
   layout.ensure(PAGE_H)
-  layout.title('命盤總結')
+  layout.title('格局與刑沖合害')
+  layout.card('格局傾向', [`格局傾向：${result.pattern}`, result.patternNote || ''], { accent: COLORS.gold })
+  if (result.relations.length) {
+    layout.table('刑沖合害成立項（規則引擎結果）', result.relations.map((r) => [r.type, r.label, r.branches?.join('、') || '', r.desc]), [45, 120, 80, 280])
+  } else {
+    layout.paragraph('本命盤未見明顯刑沖合害。', { color: COLORS.muted })
+  }
+  layout.card('規則說明', [
+    '自刑：同一地支至少出現兩次才成立。',
+    '三合局：三個地支全部出現才成立。',
+    '半合：只寫半合，不寫成完整三合局。',
+    '六合：只列合，未實作合化條件前不宣稱合化。',
+  ])
+
+  // ── 第 5 頁：大運 ─────────────────────────────────────────────────
+  layout.ensure(PAGE_H)
+  layout.title('大運')
+  layout.paragraph(result.dayunNote || '', { color: COLORS.muted })
+  layout.table('大運詳細分析', result.dayunDetails.map((d) => [d.age, d.pillar, d.tenGod, `參考 ${d.score}`, d.focus]), [95, 55, 55, 55, 265])
+
+  // ── 第 6 頁：流年與流月 ───────────────────────────────────────────
+  layout.ensure(PAGE_H)
+  layout.title('流年與流月')
+  layout.paragraph('八字流年以立春為界，非國曆 1 月 1 日。', { color: COLORS.muted })
+  if (result.liunianNote) layout.paragraph(result.liunianNote, { color: COLORS.muted })
+  layout.table('流年', result.liunian.map((l) => [`${l.year}`, l.pillar, l.tenGod, l.nayin, l.summary]), [55, 55, 60, 75, 260])
+  layout.paragraph('流月以節氣切換，不等於農曆初一或國曆每月 1 日。', { color: COLORS.muted })
+  if (result.liuyueNote) layout.paragraph(result.liuyueNote, { color: COLORS.muted })
+  layout.table('節氣流月', result.liuyueDetails.map((m) => [m.label, m.range || '', m.pillar, m.tenGod, m.advice]), [45, 90, 55, 60, 275])
+
+  // ── 第 7 頁：薪資主題分析 ─────────────────────────────────────────
+  layout.ensure(PAGE_H)
+  layout.title('主題分析')
   layout.paragraph(result.summary)
   layout.paragraph(result.detailText)
   layout.card(`主題分析：${input.topic || '整體運勢'}`, [result.topicAnalysis], { accent: COLORS.gold })
-
   layout.title('AI 分段解讀')
   layout.card('事業', [sectionText(result, 'career', '尚未產生 AI 事業解讀')])
   layout.card('財運', [sectionText(result, 'wealth', '尚未產生 AI 財運解讀')])
@@ -335,36 +401,15 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
   layout.card('姓名建議', [sectionText(result, 'nameAdvice', '尚未產生 AI 姓名建議')])
   layout.card('喜用補強', [sectionText(result, 'remedies', '尚未產生 AI 喜用補強建議')])
 
+  // ── 第 8 頁：姓名與神煞驗證狀態 ──────────────────────────────────
   layout.ensure(PAGE_H)
-  layout.title('大運')
-  layout.paragraph(result.dayunNote || '')
-  layout.table('大運詳細分析', result.dayunDetails.map((d) => [d.age, d.pillar, d.tenGod, `參考 ${d.score}`, d.focus]), [95, 55, 55, 55, 265])
-
-  layout.ensure(PAGE_H)
-  layout.title('流年與流月')
-  layout.paragraph(result.liunianNote || '')
-  layout.table('流年', result.liunian.map((l) => [`${l.year}`, l.pillar, l.tenGod, l.nayin, l.summary]), [55, 55, 60, 75, 260])
-  layout.paragraph(result.liuyueNote || '')
-  layout.table('節氣流月', result.liuyueDetails.map((m) => [m.label, m.range || '', m.pillar, m.tenGod, m.advice]), [45, 90, 55, 60, 275])
-
-  if (result.relations.length) {
-    layout.ensure(PAGE_H)
-    layout.title('格局與刑沖合害')
-    layout.card('格局傾向', [`格局傾向：${result.pattern}`, result.patternNote || ''], { accent: COLORS.gold })
-    layout.table('刑沖合害成立項', result.relations.map((r) => [r.type, r.label, r.branches?.join('、') || '', r.desc]), [45, 120, 80, 280])
-    layout.card('排除說明', [
-      '自刑必須同一地支至少出現兩次才成立。',
-      '三合局必須三個地支全部出現才成立。',
-      '半合只能寫半合，不可寫成完整三合局；六合只列合，不直接宣稱合化。',
-    ])
-  }
+  layout.title('姓名與神煞驗證狀態')
 
   if (result.wuge && result.wuge.總格 > 0) {
     const w = result.wuge
-    layout.ensure(PAGE_H)
-    layout.title('姓名與神煞')
-    layout.paragraph(result.nameValidationNote || '')
-    layout.table('五格數理', [
+    layout.paragraph('姓名五格：待校驗。姓名筆畫與字五行依流派不同，未校驗前不輸出吉凶定論，以下為資料庫計算值。', { color: COLORS.muted })
+    if (result.nameValidationNote) layout.paragraph(result.nameValidationNote, { color: COLORS.muted })
+    layout.table('五格數理（待校驗）', [
       ['天格', `${w.天格}`, w.luck.天格, w.details.天格?.meaning || ''],
       ['人格', `${w.人格}`, w.luck.人格, w.details.人格?.meaning || ''],
       ['地格', `${w.地格}`, w.luck.地格, w.details.地格?.meaning || ''],
@@ -374,21 +419,41 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
     if (w.charAnalysis.length) {
       layout.table('姓名字義與五行', w.charAnalysis.map((c) => [c.char, `${c.strokes}劃`, c.wuxing || '需確認', c.meaning || '需確認']), [45, 65, 65, 350])
     }
+    if (w.unknownChars.length) {
+      layout.paragraph(`以下字元筆畫資料庫尚未收錄，需手動校驗：${w.unknownChars.join('、')}`, { color: COLORS.muted })
+    }
+  } else {
+    layout.paragraph('未輸入姓名，略過五格分析。', { color: COLORS.muted })
   }
 
-  if (result.shensha.length) {
-    if (!result.wuge || result.wuge.總格 <= 0) {
-      layout.ensure(PAGE_H)
-      layout.title('姓名與神煞')
-    }
-    layout.paragraph(result.shenshaNote || '')
+  // 神煞：公式未完成時顯示尚未驗證，不輸出任何吉凶結論
+  if (result.shensha && result.shensha.length > 0) {
+    layout.paragraph(result.shenshaNote || '', { color: COLORS.muted })
     layout.table('神煞', result.shensha.map((s) => [s.name, s.status || s.type, s.basis || '依據資料表', s.desc]), [75, 55, 120, 275])
+  } else {
+    layout.card('神煞：尚未驗證', [
+      '神煞需依日干、年干、地支或月令查法判定，目前公式未完成驗證，不列入正式結論。',
+    ], { accent: COLORS.gold })
   }
 
   if (result.aiQuestions?.length) {
     layout.title('AI 追問紀錄')
     result.aiQuestions.forEach((q) => layout.card(`問：${q.question}`, [q.answer], { accent: COLORS.gold }))
   }
+
+  // ── 每頁底部加固定來源說明（換行、不與頁碼重疊）────────────────
+  const allPages = pdfDoc.getPages()
+  allPages.forEach((page, idx) => {
+    if (idx === 0) return
+    let noteY = 28
+    PDF_SOURCE_NOTES.forEach((note) => {
+      const lines = wrapText(note, font, 6.5, CONTENT_WIDTH)
+      lines.forEach((line) => {
+        page.drawText(line, { x: MARGIN, y: noteY, size: 6.5, font, color: COLORS.muted })
+        noteY += 8
+      })
+    })
+  })
 
   layout.removeTrailingBlankPage()
   layout.addPageNumbers()

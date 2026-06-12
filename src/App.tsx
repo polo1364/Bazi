@@ -6,6 +6,7 @@ import { analyzeBirth, validateChartInput, validateInput, getChartFieldErrors, w
 import { askAiQuestion, generateAiNarrative, type AiNarrativeResult } from './lib/aiNarrative'
 import { isAiConfigured, loadAiSettings } from './lib/aiSettings'
 import { aiCacheKey } from './lib/aiCache'
+import { getSafePdfResult, safeApplyAiNarrative } from './lib/aiNarrativeSafety'
 import { pillarsToArray } from './lib/bazi'
 import { exportPdf, waitForLayout } from './lib/pdf'
 import { initDataStore } from './lib/dataStore'
@@ -43,6 +44,7 @@ export default function App() {
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiAsking, setAiAsking] = useState(false)
   const [aiError, setAiError] = useState('')
+  const [safetyNotice, setSafetyNotice] = useState('')
   const [aiAskError, setAiAskError] = useState('')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [saveError, setSaveError] = useState('')
@@ -102,7 +104,9 @@ export default function App() {
       const cacheKey = await aiCacheKey('narrative', inputWithDefaults, r, `tone:${settings.tone};model:${settings.model}`)
       const cached = await getAiCache<AiNarrativeResult>(cacheKey)
       const narrative = !options?.force && cached ? cached : await generateAiNarrative(inputWithDefaults, r)
-      if (options?.force || !cached) {
+      const baseResult = analyzeBirth(birthInput) ?? r
+      const safe = safeApplyAiNarrative({ baseResult, aiNarrative: narrative })
+      if (safe.usedAi && (options?.force || !cached)) {
         await saveAiCache({
           key: cacheKey,
           kind: 'narrative',
@@ -111,13 +115,13 @@ export default function App() {
           updatedAt: Date.now(),
         })
       }
-      setResult((prev) => prev ? {
-        ...prev,
-        summary: narrative.summary,
-        detailText: narrative.detailText,
-        topicAnalysis: narrative.topicAnalysis,
-        aiSections: narrative.sections,
-      } : prev)
+      if (!safe.usedAi) {
+        console.warn('AI 文案未通過 reportValidator，一律回退規則引擎文案：', safe.validatorErrors)
+        setSafetyNotice('AI 文案未通過一致性檢查，已使用規則引擎文案。')
+      } else {
+        setSafetyNotice('')
+      }
+      setResult((prev) => prev ? { ...safe.result, aiQuestions: prev.aiQuestions } : safe.result)
     } catch (e) {
       console.error(e)
       setAiError(e instanceof Error ? e.message : 'AI 解讀失敗，已保留本地模板')
@@ -158,6 +162,7 @@ export default function App() {
     setError('')
     setFieldErrors([])
     setAiError('')
+    setSafetyNotice('')
     try {
       const chartErrs = getChartFieldErrors(input)
       const err = mode === 'chart' ? validateChartInput(input) : validateInput(input)
@@ -225,6 +230,7 @@ export default function App() {
     setInput(record.input)
     setResult(record.result)
     setError('')
+    setSafetyNotice('')
     setSidebarOpen(false)
     setAiAskError('')
     if (record.input.chartImageId) {
@@ -245,12 +251,22 @@ export default function App() {
     if (!reportRef.current || !result) return
     setPdfExporting(true)
     setError('')
-    flushSync(() => setPdfMode(true))
+    const fallbackResult = analyzeBirth(input) ?? result
+    const pdfSafety = getSafePdfResult({ result, fallbackResult })
+    const outputResult = pdfSafety.result
+    if (pdfSafety.usedFallback) {
+      console.warn('PDF 文案未通過 reportValidator，已回退規則引擎文案：', pdfSafety.validatorErrors)
+      setSafetyNotice('PDF 文案已回退為規則引擎版本。')
+    }
+    flushSync(() => {
+      setResult(outputResult)
+      setPdfMode(true)
+    })
     try {
       mainRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
       await waitForLayout()
       await new Promise((r) => setTimeout(r, 350))
-      await exportPdf(reportRef.current, input, result)
+      await exportPdf(reportRef.current, input, outputResult)
     } catch (e) {
       console.error(e)
       setError(`PDF 產生失敗：${e instanceof Error ? e.message : '請稍後再試'}`)
@@ -274,6 +290,7 @@ export default function App() {
 
   const handleCompleteReport = async () => {
     setError('')
+    setSafetyNotice('')
     setFieldErrors([])
     const err = validateInput(input)
     if (err) {
@@ -298,7 +315,8 @@ export default function App() {
         const cacheKey = await aiCacheKey('narrative', inputWithDefaults, r, `tone:${settings.tone};model:${settings.model}`)
         const cached = await getAiCache<AiNarrativeResult>(cacheKey)
         const narrative = cached ?? await generateAiNarrative(inputWithDefaults, r)
-        if (!cached) {
+        const safe = safeApplyAiNarrative({ baseResult: r, aiNarrative: narrative })
+        if (safe.usedAi && !cached) {
           await saveAiCache({
             key: cacheKey,
             kind: 'narrative',
@@ -307,13 +325,17 @@ export default function App() {
             updatedAt: Date.now(),
           })
         }
-        finalResult = {
-          ...r,
-          summary: narrative.summary,
-          detailText: narrative.detailText,
-          topicAnalysis: narrative.topicAnalysis,
-          aiSections: narrative.sections,
+        if (!safe.usedAi) {
+          console.warn('完整報告 AI 文案未通過 reportValidator，已回退規則引擎文案：', safe.validatorErrors)
+          setSafetyNotice('AI 文案未通過一致性檢查，已使用規則引擎文案。')
         }
+        finalResult = safe.result
+      }
+      const pdfSafety = getSafePdfResult({ result: finalResult, fallbackResult: r })
+      if (pdfSafety.usedFallback) {
+        console.warn('完整報告 PDF 文案未通過 reportValidator，已回退規則引擎文案：', pdfSafety.validatorErrors)
+        setSafetyNotice('PDF 文案已回退為規則引擎版本。')
+        finalResult = pdfSafety.result
       }
       flushSync(() => {
         setResult(finalResult)
@@ -400,6 +422,12 @@ export default function App() {
             <div className="animate-fade-in mb-5 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
               <span className="mt-0.5 shrink-0">⚠</span>
               <span>{error}</span>
+            </div>
+          )}
+          {safetyNotice && (
+            <div className="animate-fade-in mb-5 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <span className="mt-0.5 shrink-0">!</span>
+              <span>{safetyNotice}</span>
             </div>
           )}
 
@@ -503,7 +531,8 @@ export default function App() {
                 </>
               )}
 
-              {result.shensha && <ShenshaPanel items={result.shensha} />}
+              {/* 神煞：永遠顯示，空陣列時元件自動顯示「尚未驗證」說明 */}
+              <ShenshaPanel items={result.shensha ?? []} />
 
               <AiSectionsPanel sections={result.aiSections} loading={aiGenerating} />
 

@@ -71,7 +71,7 @@ export function getBaziFromSolarDate(input) {
     },
     notes: [
       '四柱由 lunar-javascript 產生',
-      '後續十神、藏干、刑沖合害、強弱與文案由本系統規則引擎計算',
+      '十神、藏干、刑沖合害、強弱與文案由本系統規則引擎計算',
     ],
   }
 }
