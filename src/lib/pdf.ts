@@ -577,14 +577,14 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
   layout.paragraph(result.summary)
   layout.paragraph(result.detailText)
   layout.card(`主題分析：${input.topic || '整體運勢'}`, [result.topicAnalysis], { accent: COLORS.gold })
-  layout.title('AI 分段解讀')
-  layout.card('事業', [sectionText(result, 'career', '尚未產生 AI 事業解讀')])
-  layout.card('財運', [sectionText(result, 'wealth', '尚未產生 AI 財運解讀')])
-  layout.card('感情人際', [sectionText(result, 'relationship', '尚未產生 AI 感情人際解讀')])
-  layout.card('健康', [sectionText(result, 'health', '尚未產生 AI 健康解讀')])
-  layout.card('流年', [sectionText(result, 'yearly', '尚未產生 AI 流年解讀')])
-  layout.card('姓名建議', [sectionText(result, 'nameAdvice', '尚未產生 AI 姓名建議')])
-  layout.card('喜用補強', [sectionText(result, 'remedies', '尚未產生 AI 喜用補強建議')])
+  layout.title('分段解讀')
+  layout.card('事業', [sectionText(result, 'career', '尚未產生進階事業解讀')])
+  layout.card('財運', [sectionText(result, 'wealth', '尚未產生進階財運解讀')])
+  layout.card('感情人際', [sectionText(result, 'relationship', '尚未產生進階感情人際解讀')])
+  layout.card('健康', [sectionText(result, 'health', '尚未產生進階健康解讀')])
+  layout.card('流年', [sectionText(result, 'yearly', '尚未產生進階流年解讀')])
+  layout.card('姓名建議', [sectionText(result, 'nameAdvice', '尚未產生進階姓名建議')])
+  layout.card('喜用補強', [sectionText(result, 'remedies', '尚未產生進階喜用補強建議')])
 
   // ── 第 8 頁：姓名與神煞驗證狀態 ──────────────────────────────────
   layout.ensure(PAGE_H)
@@ -675,7 +675,7 @@ export async function exportPdf(_element: HTMLElement, input: BirthInput, result
   }
 
   if (result.aiQuestions?.length) {
-    layout.title('AI 追問紀錄')
+    layout.title('命盤追問紀錄')
     result.aiQuestions.forEach((q) => layout.card(`問：${q.question}`, [q.answer], { accent: COLORS.gold }))
   }
 

@@ -25,10 +25,10 @@ export default function AiSectionsPanel({ sections, result, loading }: Props) {
     <section className="card p-5 sm:p-6">
       <div className="panel-header">
         <div>
-          <h3 className="section-title !mb-0">AI 分段解讀</h3>
+          <h3 className="section-title !mb-0">分段解讀</h3>
           <p className="mt-1 text-xs text-muted">依命盤、流年與姓名資料拆解重點</p>
         </div>
-        {loading && <span className="text-xs text-[#f0c040]">生成中…</span>}
+        {loading && <span className="text-xs text-[#f0c040]">整理中…</span>}
       </div>
 
       <div className="ai-section-grid">
@@ -41,7 +41,7 @@ export default function AiSectionsPanel({ sections, result, loading }: Props) {
                 ? buildUsefulGodsAdvice(result)
                 : item.key === 'health' && result
                   ? buildHealthAdvice(result)
-                  : '等待 AI 生成此段內容。')}
+                  : '等待進階解讀整理此段內容。')}
             </p>
           </article>
         ))}

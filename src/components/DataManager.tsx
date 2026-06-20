@@ -108,14 +108,14 @@ export default function DataManager({ onClose }: Props) {
         )}
 
         <div className="mt-6 border-t border-white/10 pt-5">
-          <h4 className="section-title mb-3">DeepSeek AI 解讀</h4>
+          <h4 className="section-title mb-3">進階解讀設定</h4>
           {useAiProxy() ? (
             <p className="mb-4 text-xs leading-relaxed text-muted">
-              此站已啟用<strong className="text-secondary"> 伺服器代理模式 </strong>，API Key 由部署平台管理，訪客無需自行填寫 Key，只需勾選啟用即可。
+              此站已啟用<strong className="text-secondary"> 伺服器代理模式 </strong>，連線憑證由部署平台管理，訪客無需自行填寫，只需勾選啟用即可。
             </p>
           ) : (
             <p className="mb-4 text-xs leading-relaxed text-muted">
-              啟用後，「命盤總結」與「主題分析」將由 DeepSeek 依本地排盤結果生成。API Key 僅存於本機瀏覽器。
+              啟用後，「命盤總結」與「主題分析」會依本地排盤結果產生更完整的文字解讀。連線憑證僅存於本機瀏覽器。
             </p>
           )}
 
@@ -126,13 +126,13 @@ export default function DataManager({ onClose }: Props) {
               onChange={(e) => setAi({ ...ai, enabled: e.target.checked })}
               className="rounded"
             />
-            啟用 AI 解讀
+            啟用進階解讀
           </label>
 
           {!useAiProxy() && (
             <div className="space-y-3">
               <div>
-                <label className="form-label">API Key</label>
+                <label className="form-label">存取金鑰</label>
                 <input
                   type="password"
                   className="form-input"
@@ -145,15 +145,15 @@ export default function DataManager({ onClose }: Props) {
               <div>
                 <label className="form-label">模型</label>
                 <select className="form-input" value={ai.model} onChange={(e) => setAi({ ...ai, model: e.target.value })}>
-                  <option value="deepseek-chat">deepseek-chat（推薦）</option>
-                  <option value="deepseek-reasoner">deepseek-reasoner</option>
+                  <option value="deepseek-chat">標準文字解讀（推薦）</option>
+                  <option value="deepseek-reasoner">進階推理解讀</option>
                 </select>
               </div>
             </div>
           )}
 
           <div className="mt-3">
-            <label className="form-label">AI 語氣</label>
+            <label className="form-label">解讀語氣</label>
             <select className="form-input" value={ai.tone} onChange={(e) => setAi({ ...ai, tone: e.target.value as AiSettings['tone'] })}>
               <option value="plain">白話版：自然好懂</option>
               <option value="professional">專業版：條理精準</option>
@@ -163,7 +163,7 @@ export default function DataManager({ onClose }: Props) {
           </div>
 
           <button type="button" onClick={handleSaveAi} className="btn-gold mt-3 w-full text-xs">
-            {aiSaved ? '已儲存' : '儲存 AI 設定'}
+            {aiSaved ? '已儲存' : '儲存解讀設定'}
           </button>
         </div>
       </div>

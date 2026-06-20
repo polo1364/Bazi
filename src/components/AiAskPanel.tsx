@@ -25,7 +25,7 @@ export default function AiAskPanel({ questions = [], loading, disabled, error, o
     <section className="card p-5 sm:p-6">
       <div className="panel-header">
         <div>
-          <h3 className="section-title !mb-0">AI 追問</h3>
+          <h3 className="section-title !mb-0">命盤追問</h3>
           <p className="mt-1 text-xs text-muted">依目前命盤直接追問，回答會保存在本次結果中</p>
         </div>
         {loading && <span className="text-xs text-[#f0c040]">回答中…</span>}

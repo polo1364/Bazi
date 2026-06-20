@@ -125,19 +125,19 @@ export default function App() {
         })
       }
       if (!safe.usedAi) {
-        console.warn('AI 文案清洗後仍未通過 reportValidator，已回退規則引擎文案：', safe.validatorErrors)
-        setSafetyNotice(formatSafetyNotice('AI 文案未通過一致性檢查，已使用規則引擎文案。', safe.validatorErrors))
+        console.warn('外部解讀文案清洗後仍未通過 reportValidator，已回退規則引擎文案：', safe.validatorErrors)
+        setSafetyNotice(formatSafetyNotice('外部解讀文案未通過一致性檢查，已使用規則引擎文案。', safe.validatorErrors))
       } else if (safe.wasSanitized) {
-        console.info('AI 原文包含未校驗內容，已自動清洗並通過一致性檢查。', safe.originalValidatorErrors)
-        console.info('AI 文案清洗後已通過 reportValidator，使用清洗後版本。')
-        setSafetyNotice('AI 文案已自動校正為規則引擎一致版本。')
+        console.info('外部解讀原文包含未校驗內容，已自動清洗並通過一致性檢查。', safe.originalValidatorErrors)
+        console.info('外部解讀文案清洗後已通過 reportValidator，使用清洗後版本。')
+        setSafetyNotice('外部解讀文案已自動校正為規則引擎一致版本。')
       } else {
         setSafetyNotice('')
       }
       setResult((prev) => prev ? { ...safe.result, aiQuestions: prev.aiQuestions } : safe.result)
     } catch (e) {
       console.error(e)
-      setAiError(e instanceof Error ? e.message : 'AI 解讀失敗，已保留本地模板')
+      setAiError(e instanceof Error ? e.message : '進階解讀失敗，已保留本地模板')
     } finally {
       setAiGenerating(false)
     }
@@ -165,7 +165,7 @@ export default function App() {
       setResult((prev) => prev ? { ...prev, aiQuestions: [item, ...(prev.aiQuestions ?? [])] } : prev)
     } catch (e) {
       console.error(e)
-      setAiAskError(e instanceof Error ? e.message : 'AI 追問失敗，請稍後再試')
+      setAiAskError(e instanceof Error ? e.message : '命盤追問失敗，請稍後再試')
     } finally {
       setAiAsking(false)
     }
@@ -309,12 +309,12 @@ export default function App() {
           })
         }
         if (!safe.usedAi) {
-          console.warn('AI 文案清洗後仍未通過 reportValidator，已回退規則引擎文案：', safe.validatorErrors)
-          setSafetyNotice(formatSafetyNotice('AI 文案未通過一致性檢查，已使用規則引擎文案。', safe.validatorErrors))
+          console.warn('外部解讀文案清洗後仍未通過 reportValidator，已回退規則引擎文案：', safe.validatorErrors)
+          setSafetyNotice(formatSafetyNotice('外部解讀文案未通過一致性檢查，已使用規則引擎文案。', safe.validatorErrors))
         } else if (safe.wasSanitized) {
-          console.info('AI 原文包含未校驗內容，已自動清洗並通過一致性檢查。', safe.originalValidatorErrors)
-          console.info('AI 文案清洗後已通過 reportValidator，使用清洗後版本。')
-          setSafetyNotice('AI 文案已自動校正為規則引擎一致版本。')
+          console.info('外部解讀原文包含未校驗內容，已自動清洗並通過一致性檢查。', safe.originalValidatorErrors)
+          console.info('外部解讀文案清洗後已通過 reportValidator，使用清洗後版本。')
+          setSafetyNotice('外部解讀文案已自動校正為規則引擎一致版本。')
         }
         finalResult = safe.result
       }
@@ -357,7 +357,7 @@ export default function App() {
     ['刑沖合害', result.relations?.length ? '通過' : '待檢查'],
     ['流年流月', result.liunian?.length && result.liuyueDetails?.length ? '通過' : '待檢查'],
     ['旺衰 v2', result.strengthV2 ? '通過' : '待檢查'],
-    ['AI 文案', safetyNotice.includes('回退') ? 'fallback' : safetyNotice.includes('校正') ? '已校正' : '通過'],
+    ['進階解讀', safetyNotice.includes('回退') ? '規則版' : safetyNotice.includes('校正') ? '已校正' : '通過'],
     ['PDF', validateAnalysisResult(result).valid ? '匯出前通過' : '匯出前需校正'],
     ['規則版本', result.ruleVersions ? `旺衰 ${result.ruleVersions.strengthV2Engine}｜歲運 ${result.ruleVersions.fortuneV2Engine}｜神煞 ${result.ruleVersions.shenshaEngine}` : '待檢查'],
   ] : []
@@ -451,7 +451,7 @@ export default function App() {
                 <div className="empty-state-icon">命</div>
                 <h2 className="empty-state-title">請輸入資料後開始推演</h2>
                 <p className="empty-state-desc">
-                  排盤與五格在瀏覽器本地完成；若啟用 DeepSeek AI 解讀，命盤摘要會送至 API 生成文字。
+                  八字排盤、姓名五格與歷史紀錄都在瀏覽器本地完成；若啟用進階解讀，只會送出命盤摘要來產生文字說明。
                 </p>
                 <div className="empty-steps">
                   <div className="empty-step">
@@ -561,7 +561,7 @@ export default function App() {
                   <h3 className="section-title !mb-0">命盤總結</h3>
                   <div className="flex items-center gap-2">
                     {aiGenerating && (
-                      <span className="text-xs text-[#f0c040]">DeepSeek 解讀中…</span>
+                      <span className="text-xs text-[#f0c040]">進階解讀中…</span>
                     )}
                     {isAiConfigured() && result && !aiGenerating && (
                       <button
@@ -569,7 +569,7 @@ export default function App() {
                         onClick={() => void enrichWithAi(result, input, { force: true })}
                         className="btn-secondary text-xs"
                       >
-                        重新 AI 解讀
+                        重新進階解讀
                       </button>
                     )}
                   </div>
@@ -593,7 +593,7 @@ export default function App() {
                     <h4 className="mb-2 text-sm font-semibold text-[#fde68a]">
                       主題分析{input.topic ? ` · ${input.topic}` : ''}
                       {isAiConfigured() && !aiGenerating && (
-                        <span className="ml-2 rounded-full bg-[#f0c040]/15 px-2 py-0.5 text-[10px] font-normal text-[#f0c040]">AI</span>
+                        <span className="ml-2 rounded-full bg-[#f0c040]/15 px-2 py-0.5 text-[10px] font-normal text-[#f0c040]">進階解讀</span>
                       )}
                     </h4>
                     <p className="text-sm leading-relaxed text-secondary">{result.topicAnalysis}</p>

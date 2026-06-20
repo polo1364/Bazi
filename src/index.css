@@ -800,7 +800,7 @@ body {
   color: var(--subtle);
 }
 
-/* 資料庫 / AI 設定彈窗 */
+/* 資料庫 / 進階解讀設定彈窗 */
 .data-modal-backdrop {
   background:
     radial-gradient(circle at 50% 12%, rgba(240, 192, 64, 0.12), transparent 26rem),
@@ -836,7 +836,7 @@ body {
   background: rgba(8, 14, 28, 0.55);
 }
 
-/* AI 分段解讀 */
+/* 分段解讀 */
 .ai-section-grid {
   display: grid;
   grid-template-columns: 1fr;

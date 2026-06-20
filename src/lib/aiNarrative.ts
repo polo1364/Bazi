@@ -376,7 +376,7 @@ export async function callDeepSeek(
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { error?: string }
-      let message = err.error || `代理 API 錯誤 (${res.status})`
+      let message = err.error || `連線代理錯誤 (${res.status})`
       try {
         const parsed = JSON.parse(message) as { error?: { message?: string } }
         message = parsed.error?.message || message
@@ -387,7 +387,7 @@ export async function callDeepSeek(
     }
     const data = await res.json() as { choices?: { message?: { content?: string } }[] }
     const content = data.choices?.[0]?.message?.content
-    if (!content) throw new Error('AI 未回傳內容')
+    if (!content) throw new Error('進階解讀未回傳內容')
     return content
   }
 
@@ -403,12 +403,12 @@ export async function callDeepSeek(
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '')
-    throw new Error(`DeepSeek API 錯誤 (${res.status})${errText ? `：${errText.slice(0, 120)}` : ''}`)
+    throw new Error(`進階解讀連線錯誤 (${res.status})${errText ? `：${errText.slice(0, 120)}` : ''}`)
   }
 
   const data = await res.json() as { choices?: { message?: { content?: string } }[] }
   const content = data.choices?.[0]?.message?.content
-  if (!content) throw new Error('AI 未回傳內容')
+  if (!content) throw new Error('進階解讀未回傳內容')
   return content
 }
 
@@ -420,10 +420,10 @@ export async function generateAiNarrative(
   const proxy = useAiProxy()
 
   if (!proxy && !settings.enabled) {
-    throw new Error('尚未啟用 AI 解讀')
+    throw new Error('尚未啟用進階解讀')
   }
   if (!proxy && !settings.apiKey.trim()) {
-    throw new Error('尚未設定 DeepSeek API Key')
+    throw new Error('尚未設定進階解讀存取金鑰')
   }
 
   const context = buildChartContext(input, result)
@@ -482,10 +482,10 @@ export async function askAiQuestion(
   const proxy = useAiProxy()
 
   if (!proxy && !settings.enabled) {
-    throw new Error('尚未啟用 AI 解讀')
+    throw new Error('尚未啟用進階解讀')
   }
   if (!proxy && !settings.apiKey.trim()) {
-    throw new Error('尚未設定 DeepSeek API Key')
+    throw new Error('尚未設定進階解讀存取金鑰')
   }
 
   const context = buildChartContext(input, result)
