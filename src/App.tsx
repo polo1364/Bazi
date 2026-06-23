@@ -1,0 +1,643 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
+import type { AiQuestion, AnalysisResult, BirthInput, ChartTab, Gender, SavedRecord } from './types'
+import { CHART_TABS } from './lib/constants'
+import { analyzeBirth, validateChartInput, validateInput, getChartFieldErrors, withAnalysisDefaults } from './lib/analysis'
+import { askAiQuestion, generateAiNarrative, type AiNarrativeResult } from './lib/aiNarrative'
+import { isAiConfigured, loadAiSettings } from './lib/aiSettings'
+import { aiCacheKey } from './lib/aiCache'
+import { getSafePdfResult, safeApplyAiNarrative, validateAnalysisResult } from './lib/aiNarrativeSafety'
+import { pillarsToArray } from './lib/bazi'
+import { exportPdf, waitForLayout } from './lib/pdf'
+import { initDataStore } from './lib/dataStore'
+import { createEmptyInput } from './lib/defaults'
+import { createShareUrl, readSharedInput } from './lib/share'
+import { getAiCache, getAllRecords, saveAiCache, saveRecord, deleteRecord, saveChartImage, getChartImage } from './db'
+import Header from './components/Header'
+import Sidebar from './components/Sidebar'
+import PillarCard from './components/PillarCard'
+import TenGodLegend from './components/TenGodLegend'
+import TabPanel from './components/TabPanel'
+import HistoryPanel from './components/HistoryPanel'
+import WugePanel from './components/WugePanel'
+import ShenshaPanel from './components/ShenshaPanel'
+import ResultHero from './components/ResultHero'
+import DataManager from './components/DataManager'
+import AiSectionsPanel from './components/AiSectionsPanel'
+import AiAskPanel from './components/AiAskPanel'
+
+function formatSafetyNotice(message: string, errors: string[]): string {
+  if (!errors.length) return message
+  return [
+    message,
+    '攔截原因：',
+    ...errors.map((error, index) => `${index + 1}. ${error}`),
+  ].join('\n')
+}
+
+export default function App() {
+  const [input, setInput] = useState<BirthInput>(createEmptyInput)
+  const [result, setResult] = useState<AnalysisResult | null>(null)
+  const [activeTab, setActiveTab] = useState<ChartTab>('命盤')
+  const [records, setRecords] = useState<SavedRecord[]>([])
+  const [dbReady, setDbReady] = useState(false)
+  const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<string[]>([])
+  const [showDataManager, setShowDataManager] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [chartImageUrl, setChartImageUrl] = useState<string>()
+  const [pdfExporting, setPdfExporting] = useState(false)
+  const [pdfMode, setPdfMode] = useState(false)
+  const [includePersonalizedExplanation, setIncludePersonalizedExplanation] = useState(true)
+  const [shareCopied, setShareCopied] = useState(false)
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiAsking, setAiAsking] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [safetyNotice, setSafetyNotice] = useState('')
+  const [aiAskError, setAiAskError] = useState('')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [saveError, setSaveError] = useState('')
+  const reportRef = useRef<HTMLDivElement>(null)
+
+  const mainRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const shared = readSharedInput()
+    if (shared) setInput(shared)
+    initDataStore()
+      .then(() => {
+        setDbReady(true)
+        return getAllRecords()
+      })
+      .then(setRecords)
+      .catch((e) => {
+        console.error(e)
+        setDbReady(true)
+        setError('資料庫載入部分失敗，已改用內建資料繼續運作')
+      })
+  }, [])
+
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [sidebarOpen])
+
+  useEffect(() => {
+    return () => {
+      if (chartImageUrl) URL.revokeObjectURL(chartImageUrl)
+    }
+  }, [chartImageUrl])
+
+  const scrollToMessage = () => {
+    requestAnimationFrame(() => {
+      mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+  }
+
+  useLayoutEffect(() => {
+    if (!result) return
+    mainRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
+  }, [result])
+
+  const enrichWithAi = useCallback(async (r: AnalysisResult, birthInput: BirthInput, options?: { force?: boolean }) => {
+    if (!isAiConfigured()) return
+    setAiGenerating(true)
+    setAiError('')
+    try {
+      const inputWithDefaults = withAnalysisDefaults(birthInput)
+      const settings = loadAiSettings()
+      const cacheKey = await aiCacheKey('narrative', inputWithDefaults, r, `tone:${settings.tone};model:${settings.model}`)
+      const cached = await getAiCache<AiNarrativeResult>(cacheKey)
+      const narrative = !options?.force && cached ? cached : await generateAiNarrative(inputWithDefaults, r)
+      const baseResult = analyzeBirth(birthInput) ?? r
+      const safe = safeApplyAiNarrative({ baseResult, aiNarrative: narrative })
+      if (safe.usedAi && (options?.force || !cached)) {
+        await saveAiCache({
+          key: cacheKey,
+          kind: 'narrative',
+          value: safe.sanitizedNarrative,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+      }
+      if (!safe.usedAi) {
+        console.warn('外部解讀文案清洗後仍未通過 reportValidator，已回退規則引擎文案：', safe.validatorErrors)
+        setSafetyNotice(formatSafetyNotice('外部解讀文案未通過一致性檢查，已使用規則引擎文案。', safe.validatorErrors))
+      } else if (safe.wasSanitized) {
+        console.info('外部解讀原文包含未校驗內容，已自動清洗並通過一致性檢查。', safe.originalValidatorErrors)
+        console.info('外部解讀文案清洗後已通過 reportValidator，使用清洗後版本。')
+        setSafetyNotice('外部解讀文案已自動校正為規則引擎一致版本。')
+      } else {
+        setSafetyNotice('')
+      }
+      setResult((prev) => prev ? { ...safe.result, aiQuestions: prev.aiQuestions } : safe.result)
+    } catch (e) {
+      console.error(e)
+      setAiError(e instanceof Error ? e.message : '進階解讀失敗，已保留本地模板')
+    } finally {
+      setAiGenerating(false)
+    }
+  }, [])
+
+  const handleAskAi = useCallback(async (question: string) => {
+    if (!result || !isAiConfigured()) return
+    setAiAsking(true)
+    setAiAskError('')
+    try {
+      const inputWithDefaults = withAnalysisDefaults(input)
+      const cacheKey = await aiCacheKey('question', inputWithDefaults, result, question)
+      const cached = await getAiCache<string>(cacheKey)
+      const answer = cached ?? await askAiQuestion(inputWithDefaults, result, question)
+      if (!cached) {
+        await saveAiCache({
+          key: cacheKey,
+          kind: 'question',
+          value: answer,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+      }
+      const item: AiQuestion = { id: crypto.randomUUID(), question, answer, createdAt: Date.now() }
+      setResult((prev) => prev ? { ...prev, aiQuestions: [item, ...(prev.aiQuestions ?? [])] } : prev)
+    } catch (e) {
+      console.error(e)
+      setAiAskError(e instanceof Error ? e.message : '命盤追問失敗，請稍後再試')
+    } finally {
+      setAiAsking(false)
+    }
+  }, [input, result])
+
+  const executeAnalysis = useCallback((mode: 'chart' | 'full') => {
+    setError('')
+    setFieldErrors([])
+    setAiError('')
+    setSafetyNotice('')
+    try {
+      const chartErrs = getChartFieldErrors(input)
+      const err = mode === 'chart' ? validateChartInput(input) : validateInput(input)
+      if (err) {
+        setFieldErrors(chartErrs.length ? chartErrs : getChartFieldErrors(input))
+        setError(err)
+        return false
+      }
+      const r = analyzeBirth(input)
+      if (!r) {
+        setError('排盤失敗，請檢查輸入的日期或四柱是否正確')
+        scrollToMessage()
+        return false
+      }
+      setResult(r)
+      setActiveTab('命盤')
+      setFieldErrors([])
+      scrollToMessage()
+      if (mode === 'full') void enrichWithAi(r, input)
+      return true
+    } catch (e) {
+      console.error(e)
+      setError(`推演過程發生錯誤：${e instanceof Error ? e.message : '未知錯誤'}`)
+      scrollToMessage()
+      return false
+    }
+  }, [input, enrichWithAi])
+
+  const runChart = useCallback(() => executeAnalysis('chart'), [executeAnalysis])
+  const runAnalysis = useCallback(() => executeAnalysis('full'), [executeAnalysis])
+
+  const handleImageUpload = async (file: File) => {
+    const id = crypto.randomUUID()
+    await saveChartImage({ id, blob: file, fileName: file.name, createdAt: Date.now() })
+    if (chartImageUrl) URL.revokeObjectURL(chartImageUrl)
+    setChartImageUrl(URL.createObjectURL(file))
+    setInput((prev) => ({ ...prev, inputMode: 'upload', chartImageId: id }))
+  }
+
+  const handleSave = async () => {
+    if (!result) return
+    setSaveStatus('saving')
+    setSaveError('')
+    try {
+      const record: SavedRecord = {
+        id: crypto.randomUUID(),
+        name: input.name || '未命名',
+        input,
+        result,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }
+      await saveRecord(record)
+      setRecords(await getAllRecords())
+      setSaveStatus('saved')
+      window.setTimeout(() => setSaveStatus('idle'), 2500)
+    } catch (e) {
+      console.error(e)
+      setSaveStatus('error')
+      setSaveError(`儲存失敗：${e instanceof Error ? e.message : '未知錯誤'}`)
+    }
+  }
+
+  const handleLoadRecord = async (record: SavedRecord) => {
+    setInput(record.input)
+    setResult(record.result)
+    setError('')
+    setSafetyNotice('')
+    setSidebarOpen(false)
+    setAiAskError('')
+    if (record.input.chartImageId) {
+      const img = await getChartImage(record.input.chartImageId)
+      if (img) {
+        if (chartImageUrl) URL.revokeObjectURL(chartImageUrl)
+        setChartImageUrl(URL.createObjectURL(img.blob))
+      }
+    }
+  }
+
+  const handleDeleteRecord = async (id: string) => {
+    await deleteRecord(id)
+    setRecords(await getAllRecords())
+  }
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(createShareUrl(input))
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    } catch {
+      setError('分享連結複製失敗，請確認瀏覽器權限')
+      scrollToMessage()
+    }
+  }
+
+  const handleCompleteReport = async () => {
+    setError('')
+    setSafetyNotice('')
+    setFieldErrors([])
+    const err = validateInput(input)
+    if (err) {
+      setFieldErrors(getChartFieldErrors(input))
+      setError(err)
+      scrollToMessage()
+      return
+    }
+    const r = analyzeBirth(input)
+    if (!r) {
+      setError('排盤失敗，請檢查輸入的日期或四柱是否正確')
+      scrollToMessage()
+      return
+    }
+
+    setPdfExporting(true)
+    let finalResult = r
+    try {
+      if (isAiConfigured()) {
+        const inputWithDefaults = withAnalysisDefaults(input)
+        const settings = loadAiSettings()
+        const cacheKey = await aiCacheKey('narrative', inputWithDefaults, r, `tone:${settings.tone};model:${settings.model}`)
+        const cached = await getAiCache<AiNarrativeResult>(cacheKey)
+        const narrative = cached ?? await generateAiNarrative(inputWithDefaults, r)
+        const safe = safeApplyAiNarrative({ baseResult: r, aiNarrative: narrative })
+        if (safe.usedAi && !cached) {
+          await saveAiCache({
+            key: cacheKey,
+            kind: 'narrative',
+            value: safe.sanitizedNarrative,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          })
+        }
+        if (!safe.usedAi) {
+          console.warn('外部解讀文案清洗後仍未通過 reportValidator，已回退規則引擎文案：', safe.validatorErrors)
+          setSafetyNotice(formatSafetyNotice('外部解讀文案未通過一致性檢查，已使用規則引擎文案。', safe.validatorErrors))
+        } else if (safe.wasSanitized) {
+          console.info('外部解讀原文包含未校驗內容，已自動清洗並通過一致性檢查。', safe.originalValidatorErrors)
+          console.info('外部解讀文案清洗後已通過 reportValidator，使用清洗後版本。')
+          setSafetyNotice('外部解讀文案已自動校正為規則引擎一致版本。')
+        }
+        finalResult = safe.result
+      }
+      const pdfSafety = getSafePdfResult({ result: finalResult, fallbackResult: r })
+      if (pdfSafety.usedFallback) {
+        console.warn('PDF 文案未通過一致性檢查，已改用規則引擎文案。', pdfSafety.validatorErrors)
+        setSafetyNotice(formatSafetyNotice('PDF 文案已回退為規則引擎版本。', pdfSafety.validatorErrors))
+        finalResult = pdfSafety.result
+      } else if (pdfSafety.wasSanitized) {
+        console.info('PDF 文案清洗後已通過 reportValidator，使用清洗後版本。')
+        setSafetyNotice('PDF 文案已自動校正為規則引擎一致版本。')
+        finalResult = pdfSafety.result
+      }
+      flushSync(() => {
+        setResult(finalResult)
+        setActiveTab('命盤')
+        setPdfMode(true)
+      })
+      await waitForLayout()
+      await new Promise((resolve) => setTimeout(resolve, 450))
+      if (!reportRef.current) throw new Error('報告內容尚未渲染完成')
+      await exportPdf(reportRef.current, input, finalResult, { includePersonalizedExplanation })
+    } catch (e) {
+      console.error(e)
+      setResult(finalResult)
+      setError(`完整報告產生失敗：${e instanceof Error ? e.message : '請稍後再試'}`)
+      scrollToMessage()
+    } finally {
+      setPdfMode(false)
+      setPdfExporting(false)
+    }
+  }
+
+  const pillars = result ? pillarsToArray(result.chart) : null
+  const displayGender = (input.gender || '男') as Gender
+  const displayYear = (input.analysisYear || new Date().getFullYear()) as number
+  const validationStatus = result ? [
+    ['核心命盤', result.chart ? '通過' : '待檢查'],
+    ['十神', pillars?.every((p) => p.stemTenGod && p.hiddenStemTenGods.length) ? '通過' : '待檢查'],
+    ['刑沖合害', result.relations?.length ? '通過' : '待檢查'],
+    ['流年流月', result.liunian?.length && result.liuyueDetails?.length ? '通過' : '待檢查'],
+    ['旺衰 v2', result.strengthV2 ? '通過' : '待檢查'],
+    ['進階解讀', safetyNotice.includes('回退') ? '規則版' : safetyNotice.includes('校正') ? '已校正' : '通過'],
+    ['PDF', validateAnalysisResult(result).valid ? '匯出前通過' : '匯出前需校正'],
+    ['規則版本', result.ruleVersions ? `旺衰 ${result.ruleVersions.strengthV2Engine}｜歲運 ${result.ruleVersions.fortuneV2Engine}｜神煞 ${result.ruleVersions.shenshaEngine}` : '待檢查'],
+  ] : []
+
+  if (!dbReady) {
+    return (
+      <div className="app-bg flex min-h-screen flex-col items-center justify-center gap-4">
+        <div className="loader-ring" />
+        <p className="text-sm text-muted">載入資料庫中...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="app-shell app-bg flex h-screen flex-col overflow-hidden">
+      <Header
+        onOpenSettings={() => setShowDataManager(true)}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        sidebarOpen={sidebarOpen}
+        historyControls={(
+          <HistoryPanel
+            records={records}
+            onLoad={handleLoadRecord}
+            onDelete={handleDeleteRecord}
+            onSave={handleSave}
+            canSave={!!result && dbReady}
+            saveStatus={saveStatus}
+            saveError={saveError}
+          />
+        )}
+      />
+
+      <div className="app-layout relative mx-auto flex w-full max-w-[1600px] flex-1 min-h-0">
+        {/* 手機側欄遮罩 */}
+        {sidebarOpen && (
+          <div className="overlay fixed inset-0 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        )}
+
+        {/* 側欄 */}
+        <div className={`sidebar-panel ${sidebarOpen ? 'open' : ''}
+          fixed bottom-0 left-0 z-30 w-[min(var(--sidebar-w),92vw)] transform overflow-hidden bg-[#070d1a] transition-transform duration-300 ease-out
+          lg:static lg:z-auto lg:w-[var(--sidebar-w)] lg:shrink-0 lg:transform-none lg:bg-transparent lg:border-r lg:border-white/5
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+          style={{ top: 'var(--header-h)' }}
+        >
+          <Sidebar
+            input={input}
+            onChange={(patch) => setInput((prev) => ({ ...prev, ...patch }))}
+            onCalculate={runChart}
+            onAnalyze={runAnalysis}
+            error={error}
+            fieldErrors={fieldErrors}
+            onImageUpload={handleImageUpload}
+            chartImageUrl={chartImageUrl}
+            onClose={() => setSidebarOpen(false)}
+          />
+        </div>
+
+        {/* 主內容 */}
+        <main ref={mainRef} className="main-panel flex min-w-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+          {error && (
+            <div className="animate-fade-in mb-5 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              <span className="mt-0.5 shrink-0">⚠</span>
+              <span>{error}</span>
+            </div>
+          )}
+          {safetyNotice && (
+            <div className="animate-fade-in mb-5 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <span className="mt-0.5 shrink-0">!</span>
+              <span className="whitespace-pre-wrap">{safetyNotice}</span>
+            </div>
+          )}
+          {result && (
+            <details className="mb-5 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-secondary">
+              <summary className="cursor-pointer font-semibold text-[#f0c040]">資料驗證狀態</summary>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {validationStatus.map(([label, status]) => (
+                  <div key={label} className="rounded-lg border border-white/5 bg-white/5 px-3 py-2">
+                    <div className="text-[10px] text-muted">{label}</div>
+                    <div className="mt-0.5 font-medium text-secondary">{status}</div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {!result ? (
+            <div className="welcome-stage animate-fade-in flex flex-1 items-center justify-center py-12 sm:py-16">
+              <div className="empty-state">
+                <div className="empty-state-icon">命</div>
+                <h2 className="empty-state-title">請輸入資料後開始推演</h2>
+                <p className="empty-state-desc">
+                  八字排盤、姓名五格與歷史紀錄都在瀏覽器本地完成；若啟用進階解讀，只會送出命盤摘要來產生文字說明。
+                </p>
+                <div className="empty-steps">
+                  <div className="empty-step">
+                    <span className="empty-step-num">1</span>
+                    <div>
+                      <div className="empty-step-title">填寫出生資料</div>
+                      <div className="empty-step-desc">年、月、日、時辰，或勾選不確定時辰</div>
+                    </div>
+                  </div>
+                  <div className="empty-step">
+                    <span className="empty-step-num">2</span>
+                    <div>
+                      <div className="empty-step-title">自動排盤</div>
+                      <div className="empty-step-desc">確認四柱干支是否正確</div>
+                    </div>
+                  </div>
+                  <div className="empty-step">
+                    <span className="empty-step-num">3</span>
+                    <div>
+                      <div className="empty-step-title">開始推演</div>
+                      <div className="empty-step-desc">填寫性別、分析年份，取得完整合參報告</div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(true)}
+                  className="btn-gold mt-8 w-full sm:w-auto lg:hidden"
+                >
+                  開啟輸入面板
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+            <div ref={reportRef} className={`report-stack animate-fade-in mt-5${pdfMode ? ' pdf-export-mode' : ''}`}>
+              <ResultHero input={input} result={result} />
+
+              {/* 四柱 */}
+              <section className="card p-4 sm:p-5">
+                <div className="panel-header !mb-5">
+                  <h2 className="section-title !mb-0">四柱命盤</h2>
+                </div>
+                <div className="pillar-grid">
+                  {pillars!.map((p) => <PillarCard key={p.label} pillar={p} />)}
+                </div>
+              </section>
+
+              {/* 分頁 / PDF 完整分析 */}
+              {!pdfMode && (
+                <div className="tab-bar">
+                  {CHART_TABS.map((tab) => (
+                    <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+                      className={`chart-tab ${activeTab === tab ? 'active' : ''}`}>
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {pdfMode ? (
+                <>
+                  {CHART_TABS.map((tab) => (
+                    <section key={tab} className="pdf-tab-section">
+                      <h3 className="pdf-tab-heading">{tab}</h3>
+                      <TabPanel tab={tab} result={result} gender={displayGender} analysisYear={displayYear} />
+                    </section>
+                  ))}
+                  <TenGodLegend />
+                </>
+              ) : (
+                <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
+                  <div className="card overflow-hidden">
+                    <div className="panel-header mx-4 mt-4 sm:mx-5 sm:mt-5 !mb-0 border-b border-white/5 pb-3">
+                      <h3 className="section-title !mb-0">命盤結構</h3>
+                      <span className="rounded-full bg-black/25 px-2.5 py-0.5 text-xs text-muted">{activeTab}</span>
+                    </div>
+                    <TabPanel tab={activeTab} result={result} gender={displayGender} analysisYear={displayYear} />
+                  </div>
+                  <TenGodLegend />
+                </div>
+              )}
+
+              {/* 五格 */}
+              {result.wuge && (
+                <>
+                  <WugePanel wuge={result.wuge} />
+                </>
+              )}
+
+              {/* 神煞：永遠顯示，空陣列時元件自動顯示「尚未驗證」說明 */}
+              <ShenshaPanel items={result.shensha ?? []} />
+
+              <AiSectionsPanel sections={result.aiSections} result={result} loading={aiGenerating} />
+
+              <AiAskPanel
+                questions={result.aiQuestions}
+                loading={aiAsking}
+                disabled={!isAiConfigured()}
+                error={aiAskError}
+                onAsk={handleAskAi}
+              />
+
+              {/* 總結 */}
+              <section className="card border-[#f0c040]/20 p-5 sm:p-6">
+                <div className="panel-header">
+                  <h3 className="section-title !mb-0">命盤總結</h3>
+                  <div className="flex items-center gap-2">
+                    {aiGenerating && (
+                      <span className="text-xs text-[#f0c040]">進階解讀中…</span>
+                    )}
+                    {isAiConfigured() && result && !aiGenerating && (
+                      <button
+                        type="button"
+                        onClick={() => void enrichWithAi(result, input, { force: true })}
+                        className="btn-secondary text-xs"
+                      >
+                        重新進階解讀
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {aiError && (
+                  <p className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                    {aiError}
+                  </p>
+                )}
+                {result.daymasterProfile && (
+                  <p className="mb-4 text-sm leading-relaxed text-secondary">{result.daymasterProfile}</p>
+                )}
+                <div className={`mb-4 whitespace-pre-wrap rounded-xl border border-white/5 bg-black/20 p-4 text-sm leading-relaxed text-slate-100${aiGenerating ? ' animate-pulse opacity-60' : ''}`}>
+                  {result.summary}
+                </div>
+                <p className={`text-sm leading-relaxed text-secondary${aiGenerating ? ' animate-pulse opacity-60' : ''}`}>
+                  {result.detailText}
+                </p>
+                {result.topicAnalysis && (
+                  <div className={`mt-5 rounded-xl border border-[#f0c040]/25 bg-[#f0c040]/8 p-4${aiGenerating ? ' animate-pulse opacity-60' : ''}`}>
+                    <h4 className="mb-2 text-sm font-semibold text-[#fde68a]">
+                      主題分析{input.topic ? ` · ${input.topic}` : ''}
+                      {isAiConfigured() && !aiGenerating && (
+                        <span className="ml-2 rounded-full bg-[#f0c040]/15 px-2 py-0.5 text-[10px] font-normal text-[#f0c040]">進階解讀</span>
+                      )}
+                    </h4>
+                    <p className="text-sm leading-relaxed text-secondary">{result.topicAnalysis}</p>
+                    {input.query && (
+                      <p className="mt-3 border-t border-white/10 pt-3 text-sm leading-relaxed text-muted">
+                        自訂問題：{input.query}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-3">
+              <label className="flex items-start gap-3 text-sm text-secondary">
+                <input
+                  type="checkbox"
+                  className="mt-1 accent-[#f0c040]"
+                  checked={includePersonalizedExplanation}
+                  onChange={(event) => setIncludePersonalizedExplanation(event.target.checked)}
+                />
+                <span>
+                  <span className="font-semibold text-[#fde68a]">附加白話分析總結</span>
+                  <span className="mt-1 block text-xs leading-relaxed text-muted">
+                    在 PDF 最後加入依本次命盤結果產生的白話總結，協助讀懂專有名詞與實際含義。
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={handleCompleteReport} disabled={pdfExporting} className="btn-gold w-full py-3.5 disabled:cursor-not-allowed disabled:opacity-50">
+                {pdfExporting ? '完整報告產生中…' : '產生完整報告'}
+              </button>
+              <button type="button" onClick={handleShare} className="btn-ghost w-full py-3.5">
+                {shareCopied ? '分享連結已複製' : '複製分享連結'}
+              </button>
+            </div>
+            </>
+          )}
+        </main>
+      </div>
+
+      {showDataManager && <DataManager onClose={() => setShowDataManager(false)} />}
+    </div>
+  )
+}

@@ -1,0 +1,302 @@
+{
+  "甲子": {
+    "ganZhi": "甲子",
+    "nayin": "海中金",
+    "element": "金"
+  },
+  "乙丑": {
+    "ganZhi": "乙丑",
+    "nayin": "海中金",
+    "element": "金"
+  },
+  "丙寅": {
+    "ganZhi": "丙寅",
+    "nayin": "爐中火",
+    "element": "火"
+  },
+  "丁卯": {
+    "ganZhi": "丁卯",
+    "nayin": "爐中火",
+    "element": "火"
+  },
+  "戊辰": {
+    "ganZhi": "戊辰",
+    "nayin": "大林木",
+    "element": "木"
+  },
+  "己巳": {
+    "ganZhi": "己巳",
+    "nayin": "大林木",
+    "element": "木"
+  },
+  "庚午": {
+    "ganZhi": "庚午",
+    "nayin": "路邊土",
+    "element": "土"
+  },
+  "辛未": {
+    "ganZhi": "辛未",
+    "nayin": "路邊土",
+    "element": "土"
+  },
+  "壬申": {
+    "ganZhi": "壬申",
+    "nayin": "劍鋒金",
+    "element": "金"
+  },
+  "癸酉": {
+    "ganZhi": "癸酉",
+    "nayin": "劍鋒金",
+    "element": "金"
+  },
+  "甲戌": {
+    "ganZhi": "甲戌",
+    "nayin": "山頭火",
+    "element": "火"
+  },
+  "乙亥": {
+    "ganZhi": "乙亥",
+    "nayin": "山頭火",
+    "element": "火"
+  },
+  "丙子": {
+    "ganZhi": "丙子",
+    "nayin": "澗下水",
+    "element": "水"
+  },
+  "丁丑": {
+    "ganZhi": "丁丑",
+    "nayin": "澗下水",
+    "element": "水"
+  },
+  "戊寅": {
+    "ganZhi": "戊寅",
+    "nayin": "城頭土",
+    "element": "土"
+  },
+  "己卯": {
+    "ganZhi": "己卯",
+    "nayin": "城頭土",
+    "element": "土"
+  },
+  "庚辰": {
+    "ganZhi": "庚辰",
+    "nayin": "白蠟金",
+    "element": "金"
+  },
+  "辛巳": {
+    "ganZhi": "辛巳",
+    "nayin": "白蠟金",
+    "element": "金"
+  },
+  "壬午": {
+    "ganZhi": "壬午",
+    "nayin": "楊柳木",
+    "element": "木"
+  },
+  "癸未": {
+    "ganZhi": "癸未",
+    "nayin": "楊柳木",
+    "element": "木"
+  },
+  "甲申": {
+    "ganZhi": "甲申",
+    "nayin": "泉中水",
+    "element": "水"
+  },
+  "乙酉": {
+    "ganZhi": "乙酉",
+    "nayin": "泉中水",
+    "element": "水"
+  },
+  "丙戌": {
+    "ganZhi": "丙戌",
+    "nayin": "屋上土",
+    "element": "土"
+  },
+  "丁亥": {
+    "ganZhi": "丁亥",
+    "nayin": "屋上土",
+    "element": "土"
+  },
+  "戊子": {
+    "ganZhi": "戊子",
+    "nayin": "霹靂火",
+    "element": "火"
+  },
+  "己丑": {
+    "ganZhi": "己丑",
+    "nayin": "霹靂火",
+    "element": "火"
+  },
+  "庚寅": {
+    "ganZhi": "庚寅",
+    "nayin": "松柏木",
+    "element": "木"
+  },
+  "辛卯": {
+    "ganZhi": "辛卯",
+    "nayin": "松柏木",
+    "element": "木"
+  },
+  "壬辰": {
+    "ganZhi": "壬辰",
+    "nayin": "長流水",
+    "element": "水"
+  },
+  "癸巳": {
+    "ganZhi": "癸巳",
+    "nayin": "長流水",
+    "element": "水"
+  },
+  "甲午": {
+    "ganZhi": "甲午",
+    "nayin": "沙中金",
+    "element": "金"
+  },
+  "乙未": {
+    "ganZhi": "乙未",
+    "nayin": "沙中金",
+    "element": "金"
+  },
+  "丙申": {
+    "ganZhi": "丙申",
+    "nayin": "山下火",
+    "element": "火"
+  },
+  "丁酉": {
+    "ganZhi": "丁酉",
+    "nayin": "山下火",
+    "element": "火"
+  },
+  "戊戌": {
+    "ganZhi": "戊戌",
+    "nayin": "平地木",
+    "element": "木"
+  },
+  "己亥": {
+    "ganZhi": "己亥",
+    "nayin": "平地木",
+    "element": "木"
+  },
+  "庚子": {
+    "ganZhi": "庚子",
+    "nayin": "壁上土",
+    "element": "土"
+  },
+  "辛丑": {
+    "ganZhi": "辛丑",
+    "nayin": "壁上土",
+    "element": "土"
+  },
+  "壬寅": {
+    "ganZhi": "壬寅",
+    "nayin": "金箔金",
+    "element": "金"
+  },
+  "癸卯": {
+    "ganZhi": "癸卯",
+    "nayin": "金箔金",
+    "element": "金"
+  },
+  "甲辰": {
+    "ganZhi": "甲辰",
+    "nayin": "覆燈火",
+    "element": "火"
+  },
+  "乙巳": {
+    "ganZhi": "乙巳",
+    "nayin": "覆燈火",
+    "element": "火"
+  },
+  "丙午": {
+    "ganZhi": "丙午",
+    "nayin": "天河水",
+    "element": "水"
+  },
+  "丁未": {
+    "ganZhi": "丁未",
+    "nayin": "天河水",
+    "element": "水"
+  },
+  "戊申": {
+    "ganZhi": "戊申",
+    "nayin": "大驛土",
+    "element": "土"
+  },
+  "己酉": {
+    "ganZhi": "己酉",
+    "nayin": "大驛土",
+    "element": "土"
+  },
+  "庚戌": {
+    "ganZhi": "庚戌",
+    "nayin": "釵鋌金",
+    "element": "金"
+  },
+  "辛亥": {
+    "ganZhi": "辛亥",
+    "nayin": "釵鋌金",
+    "element": "金"
+  },
+  "壬子": {
+    "ganZhi": "壬子",
+    "nayin": "桑柘木",
+    "element": "木"
+  },
+  "癸丑": {
+    "ganZhi": "癸丑",
+    "nayin": "桑柘木",
+    "element": "木"
+  },
+  "甲寅": {
+    "ganZhi": "甲寅",
+    "nayin": "大溪水",
+    "element": "水"
+  },
+  "乙卯": {
+    "ganZhi": "乙卯",
+    "nayin": "大溪水",
+    "element": "水"
+  },
+  "丙辰": {
+    "ganZhi": "丙辰",
+    "nayin": "沙中土",
+    "element": "土"
+  },
+  "丁巳": {
+    "ganZhi": "丁巳",
+    "nayin": "沙中土",
+    "element": "土"
+  },
+  "戊午": {
+    "ganZhi": "戊午",
+    "nayin": "天上火",
+    "element": "火"
+  },
+  "己未": {
+    "ganZhi": "己未",
+    "nayin": "天上火",
+    "element": "火"
+  },
+  "庚申": {
+    "ganZhi": "庚申",
+    "nayin": "石榴木",
+    "element": "木"
+  },
+  "辛酉": {
+    "ganZhi": "辛酉",
+    "nayin": "石榴木",
+    "element": "木"
+  },
+  "壬戌": {
+    "ganZhi": "壬戌",
+    "nayin": "大海水",
+    "element": "水"
+  },
+  "癸亥": {
+    "ganZhi": "癸亥",
+    "nayin": "大海水",
+    "element": "水"
+  }
+}
